@@ -4,6 +4,7 @@ import { indexedDBStorage } from "./storage";
 import { createId } from "@/lib/id";
 import type {
   Dashboard,
+  DashboardFilter,
   Panel,
   LayoutItem,
   VisualizationConfig,
@@ -21,6 +22,7 @@ interface DashboardState {
   setActiveDashboard: (id: string | null) => void;
 
   addPanel: (dashboardId: string) => string;
+  duplicatePanel: (dashboardId: string, panelId: string) => string | null;
   removePanel: (dashboardId: string, panelId: string) => void;
   updatePanelTitle: (
     dashboardId: string,
@@ -38,6 +40,14 @@ interface DashboardState {
     config: Partial<VisualizationConfig>,
   ) => void;
   updateLayout: (dashboardId: string, layout: LayoutItem[]) => void;
+
+  addFilter: (dashboardId: string, filter: DashboardFilter) => void;
+  updateFilter: (
+    dashboardId: string,
+    filterId: string,
+    updates: Partial<DashboardFilter>,
+  ) => void;
+  removeFilter: (dashboardId: string, filterId: string) => void;
 }
 
 export const useDashboardStore = create<DashboardState>()(
@@ -57,6 +67,7 @@ export const useDashboardStore = create<DashboardState>()(
           updatedAt: now,
           panels: [],
           layout: [],
+          filters: [],
           settings: { refreshInterval: null, defaultDataSourceId: null },
         };
         set((state) => ({
@@ -84,6 +95,10 @@ export const useDashboardStore = create<DashboardState>()(
             i: idMap.get(l.i) ?? l.i,
           }));
           created = true;
+          const newFilters = (dash.filters ?? []).map((f) => ({
+            ...f,
+            id: createId(),
+          }));
           return {
             dashboards: {
               ...state.dashboards,
@@ -95,6 +110,7 @@ export const useDashboardStore = create<DashboardState>()(
                 updatedAt: now,
                 panels: newPanels,
                 layout: newLayout,
+                filters: newFilters,
               },
             },
           };
@@ -181,6 +197,45 @@ export const useDashboardStore = create<DashboardState>()(
           };
         });
         return panelId;
+      },
+
+      duplicatePanel: (dashboardId, panelId) => {
+        const newPanelId = createId();
+        let created = false;
+        set((state) => {
+          const dash = state.dashboards[dashboardId];
+          if (!dash) return state;
+          const srcPanel = dash.panels.find((p) => p.id === panelId);
+          const srcLayout = dash.layout.find((l) => l.i === panelId);
+          if (!srcPanel) return state;
+          created = true;
+          const newPanel: Panel = {
+            ...srcPanel,
+            id: newPanelId,
+            title: `${srcPanel.title} (copy)`,
+          };
+          const newLayoutItem: LayoutItem = {
+            i: newPanelId,
+            x: srcLayout?.x ?? 0,
+            y: Infinity,
+            w: srcLayout?.w ?? 6,
+            h: srcLayout?.h ?? 4,
+            minW: srcLayout?.minW ?? 2,
+            minH: srcLayout?.minH ?? 2,
+          };
+          return {
+            dashboards: {
+              ...state.dashboards,
+              [dashboardId]: {
+                ...dash,
+                panels: [...dash.panels, newPanel],
+                layout: [...dash.layout, newLayoutItem],
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          };
+        });
+        return created ? newPanelId : null;
       },
 
       removePanel: (dashboardId, panelId) =>
@@ -271,6 +326,58 @@ export const useDashboardStore = create<DashboardState>()(
               [dashboardId]: {
                 ...dash,
                 layout,
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          };
+        }),
+
+      addFilter: (dashboardId, filter) =>
+        set((state) => {
+          const dash = state.dashboards[dashboardId];
+          if (!dash) return state;
+          return {
+            dashboards: {
+              ...state.dashboards,
+              [dashboardId]: {
+                ...dash,
+                filters: [...(dash.filters ?? []), filter],
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          };
+        }),
+
+      updateFilter: (dashboardId, filterId, updates) =>
+        set((state) => {
+          const dash = state.dashboards[dashboardId];
+          if (!dash) return state;
+          return {
+            dashboards: {
+              ...state.dashboards,
+              [dashboardId]: {
+                ...dash,
+                filters: (dash.filters ?? []).map((f) =>
+                  f.id === filterId ? { ...f, ...updates } : f,
+                ),
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          };
+        }),
+
+      removeFilter: (dashboardId, filterId) =>
+        set((state) => {
+          const dash = state.dashboards[dashboardId];
+          if (!dash) return state;
+          return {
+            dashboards: {
+              ...state.dashboards,
+              [dashboardId]: {
+                ...dash,
+                filters: (dash.filters ?? []).filter(
+                  (f) => f.id !== filterId,
+                ),
                 updatedAt: new Date().toISOString(),
               },
             },

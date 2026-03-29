@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useDashboardStore } from "@/stores/dashboard-store";
 import { useUIStore } from "@/stores/ui-store";
 import { useEngine } from "@/engine/use-engine";
 import { useAutoRunPanels } from "@/hooks/use-auto-run-panels";
+import { interpolateFilters } from "@/lib/sql-template";
+import { queryCache } from "@/lib/query-cache";
 import { DashboardToolbar } from "@/components/dashboard/dashboard-toolbar";
 import { DashboardCanvas } from "@/components/dashboard/dashboard-canvas";
+import { FilterBar } from "@/components/dashboard/filter-bar";
 import { PanelEditor } from "@/components/dashboard/panel-editor";
 import { Button } from "@/components/ui/button";
 import type { QueryResult } from "@/engine/types";
@@ -28,6 +31,7 @@ function DashboardEditorPage() {
   const [loadingPanels, setLoadingPanels] = useState<Set<string>>(
     () => new Set(),
   );
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
 
   const handleQueryResult = useCallback(
     (panelId: string, result: QueryResult | null) => {
@@ -67,10 +71,73 @@ function DashboardEditorPage() {
     handleLoadingChange,
   );
 
+  // Re-run all panels when filter values change
+  const filterKey = useMemo(
+    () => JSON.stringify(filterValues),
+    [filterValues],
+  );
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+
+  useEffect(() => {
+    if (filterKey === prevFilterKey) return;
+    setPrevFilterKey(filterKey);
+
+    const panels = dashboard?.panels ?? [];
+    const panelsWithSql = panels.filter((p) => p.query.sql.trim());
+    if (panelsWithSql.length === 0) return;
+
+    let cancelled = false;
+
+    (async () => {
+      for (const panel of panelsWithSql) {
+        if (cancelled) break;
+        const sql = interpolateFilters(panel.query.sql, filterValues);
+
+        // Check cache first
+        const cached = queryCache.get(sql);
+        if (cached) {
+          handleQueryResult(panel.id, cached);
+          continue;
+        }
+
+        handleLoadingChange(panel.id, true);
+        try {
+          const result = await engine.executeQuery(sql);
+          if (!cancelled) {
+            queryCache.set(sql, result);
+            handleQueryResult(panel.id, result);
+          }
+        } catch {
+          // Skip failures silently on filter change
+        } finally {
+          if (!cancelled) handleLoadingChange(panel.id, false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    filterKey,
+    prevFilterKey,
+    dashboard?.panels,
+    engine,
+    filterValues,
+    handleQueryResult,
+    handleLoadingChange,
+  ]);
+
+  const handleFilterChange = useCallback(
+    (name: string, value: string) => {
+      setFilterValues((prev) => ({ ...prev, [name]: value }));
+    },
+    [],
+  );
+
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // Escape: close panel editor
       if (e.key === "Escape" && activePanelId) {
         setActivePanelId(null);
       }
@@ -94,6 +161,13 @@ function DashboardEditorPage() {
   return (
     <div className="flex h-full flex-col">
       <DashboardToolbar dashboard={dashboard} />
+
+      <FilterBar
+        dashboardId={dashboardId}
+        filters={dashboard.filters ?? []}
+        filterValues={filterValues}
+        onFilterChange={handleFilterChange}
+      />
 
       <div className="flex flex-1 overflow-hidden">
         {/* Main canvas area */}
@@ -130,6 +204,7 @@ function DashboardEditorPage() {
               key={activePanel.id}
               dashboardId={dashboardId}
               panel={activePanel}
+              filterValues={filterValues}
               onQueryResult={handleQueryResult}
             />
           </div>

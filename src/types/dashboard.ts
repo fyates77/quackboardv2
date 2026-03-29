@@ -6,12 +6,27 @@ export interface Dashboard {
   updatedAt: string;
   panels: Panel[];
   layout: LayoutItem[];
+  filters: DashboardFilter[];
   settings: DashboardSettings;
 }
 
 export interface DashboardSettings {
   refreshInterval: number | null;
   defaultDataSourceId: string | null;
+}
+
+export type DashboardFilterType = "select" | "date-range" | "text";
+
+export interface DashboardFilter {
+  id: string;
+  name: string;
+  type: DashboardFilterType;
+  /** Column name used to populate options (for select type) */
+  column?: string;
+  /** Table name to query for options */
+  table?: string;
+  /** Default value */
+  defaultValue?: string;
 }
 
 export interface Panel {

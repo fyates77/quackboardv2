@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import type { QueryEngine } from "@/engine/types";
 import type { QueryResult } from "@/engine/types";
 import type { Panel } from "@/types/dashboard";
+import { queryCache } from "@/lib/query-cache";
 
 export function useAutoRunPanels(
   engine: QueryEngine,
@@ -23,10 +24,21 @@ export function useAutoRunPanels(
     (async () => {
       for (const panel of panelsWithSql) {
         if (cancelled) break;
+
+        // Check cache first
+        const cached = queryCache.get(panel.query.sql);
+        if (cached) {
+          onResult(panel.id, cached);
+          continue;
+        }
+
         onLoadingChange(panel.id, true);
         try {
           const result = await engine.executeQuery(panel.query.sql);
-          if (!cancelled) onResult(panel.id, result);
+          if (!cancelled) {
+            queryCache.set(panel.query.sql, result);
+            onResult(panel.id, result);
+          }
         } catch {
           // Skip panels that fail silently on auto-run
         } finally {

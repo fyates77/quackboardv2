@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { GripVertical, Pencil, Trash2, X, Check, Loader2 } from "lucide-react";
+import { GripVertical, Pencil, Trash2, Copy, X, Check, Loader2 } from "lucide-react";
 import { useDashboardStore } from "@/stores/dashboard-store";
 import { useUIStore } from "@/stores/ui-store";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ export function PanelContainer({
   loading,
 }: PanelContainerProps) {
   const removePanel = useDashboardStore((s) => s.removePanel);
+  const duplicatePanel = useDashboardStore((s) => s.duplicatePanel);
   const updatePanelTitle = useDashboardStore((s) => s.updatePanelTitle);
   const { activePanelId, setActivePanelId } = useUIStore();
   const isActive = activePanelId === panel.id;
@@ -114,6 +115,18 @@ export function PanelContainer({
               }}
             >
               <Pencil className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              title="Duplicate panel"
+              onClick={(e) => {
+                e.stopPropagation();
+                duplicatePanel(dashboardId, panel.id);
+              }}
+            >
+              <Copy className="h-3 w-3" />
             </Button>
             <Button
               variant="ghost"

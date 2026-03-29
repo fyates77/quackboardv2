@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { useEngine } from "./use-engine";
+import { queryCache } from "@/lib/query-cache";
 import type { QueryResult } from "./types";
 
 interface UseQueryReturn {
@@ -18,10 +19,20 @@ export function useQuery(): UseQueryReturn {
   const execute = useCallback(
     async (sql: string): Promise<QueryResult | null> => {
       if (!sql.trim()) return null;
+
+      // Check cache
+      const cached = queryCache.get(sql);
+      if (cached) {
+        setData(cached);
+        setError(null);
+        return cached;
+      }
+
       setLoading(true);
       setError(null);
       try {
         const result = await engine.executeQuery(sql);
+        queryCache.set(sql, result);
         setData(result);
         return result;
       } catch (e) {

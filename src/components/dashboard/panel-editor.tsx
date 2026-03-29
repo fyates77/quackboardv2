@@ -4,6 +4,7 @@ import { useDashboardStore } from "@/stores/dashboard-store";
 import { useUIStore } from "@/stores/ui-store";
 import { useQuery } from "@/engine/use-query";
 import { inferVisualization } from "@/lib/viz-defaults";
+import { interpolateFilters } from "@/lib/sql-template";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger, DialogContent } from "@/components/ui/dialog";
 import { SqlEditor } from "@/components/query/sql-editor";
@@ -20,12 +21,14 @@ import type {
 interface PanelEditorProps {
   dashboardId: string;
   panel: Panel;
+  filterValues?: Record<string, string>;
   onQueryResult: (panelId: string, result: QueryResult | null) => void;
 }
 
 export function PanelEditor({
   dashboardId,
   panel,
+  filterValues = {},
   onQueryResult,
 }: PanelEditorProps) {
   const updatePanelQuery = useDashboardStore((s) => s.updatePanelQuery);
@@ -53,10 +56,12 @@ export function PanelEditor({
     const trimmed = sqlDraft.trim();
     if (!trimmed) return;
 
-    // Persist SQL to store
+    // Persist SQL to store (with template placeholders intact)
     updatePanelQuery(dashboardId, panel.id, trimmed);
 
-    const result = await execute(trimmed);
+    // Interpolate filter values before execution
+    const resolvedSql = interpolateFilters(trimmed, filterValues);
+    const result = await execute(resolvedSql);
 
     // Auto-detect viz on first run if mapping is empty
     if (
@@ -73,6 +78,7 @@ export function PanelEditor({
     dashboardId,
     panel.id,
     panel.visualization.mapping,
+    filterValues,
     execute,
     updatePanelQuery,
     updatePanelVisualization,
