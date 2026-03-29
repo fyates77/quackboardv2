@@ -1,5 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { Plus } from "lucide-react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { Plus, Copy, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,13 +15,16 @@ export const Route = createFileRoute("/dashboards/")({
 });
 
 function DashboardListPage() {
-  const { dashboards, createDashboard } = useDashboardStore();
-  const dashList = Object.values(dashboards).sort(
-    (a, b) => b.updatedAt.localeCompare(a.updatedAt),
+  const navigate = useNavigate();
+  const { dashboards, createDashboard, duplicateDashboard, deleteDashboard } =
+    useDashboardStore();
+  const dashList = Object.values(dashboards).sort((a, b) =>
+    b.updatedAt.localeCompare(a.updatedAt),
   );
 
   const handleCreate = () => {
-    createDashboard("Untitled Dashboard");
+    const id = createDashboard("Untitled Dashboard");
+    navigate({ to: "/dashboards/$dashboardId", params: { dashboardId: id } });
   };
 
   return (
@@ -55,12 +58,15 @@ function DashboardListPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {dashList.map((dash) => (
-            <Link
+            <Card
               key={dash.id}
-              to="/dashboards/$dashboardId"
-              params={{ dashboardId: dash.id }}
+              className="group relative cursor-pointer transition-shadow hover:shadow-md"
             >
-              <Card className="cursor-pointer transition-shadow hover:shadow-md">
+              <Link
+                to="/dashboards/$dashboardId"
+                params={{ dashboardId: dash.id }}
+                className="block"
+              >
                 <CardHeader>
                   <CardTitle className="text-lg">{dash.name}</CardTitle>
                   <CardDescription>
@@ -76,8 +82,38 @@ function DashboardListPage() {
                     </span>
                   </div>
                 </CardContent>
-              </Card>
-            </Link>
+              </Link>
+
+              {/* Action buttons -- appear on hover */}
+              <div className="absolute right-3 top-3 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className="h-7 w-7"
+                  title="Duplicate"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    duplicateDashboard(dash.id);
+                  }}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className="h-7 w-7 text-destructive hover:text-destructive"
+                  title="Delete"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    deleteDashboard(dash.id);
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </Card>
           ))}
         </div>
       )}

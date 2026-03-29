@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useDashboardStore } from "@/stores/dashboard-store";
+import { DashboardToolbar } from "@/components/dashboard/dashboard-toolbar";
+import { DashboardCanvas } from "@/components/dashboard/dashboard-canvas";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 
@@ -9,9 +11,7 @@ export const Route = createFileRoute("/dashboards/$dashboardId")({
 
 function DashboardEditorPage() {
   const { dashboardId } = Route.useParams();
-  const dashboard = useDashboardStore(
-    (s) => s.dashboards[dashboardId],
-  );
+  const dashboard = useDashboardStore((s) => s.dashboards[dashboardId]);
   const addPanel = useDashboardStore((s) => s.addPanel);
 
   if (!dashboard) {
@@ -24,13 +24,7 @@ function DashboardEditorPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{dashboard.name}</h1>
-        <Button onClick={() => addPanel(dashboardId)} size="sm">
-          <Plus className="mr-2 h-4 w-4" />
-          Add Panel
-        </Button>
-      </div>
+      <DashboardToolbar dashboard={dashboard} />
 
       {dashboard.panels.length === 0 ? (
         <div className="flex flex-1 items-center justify-center rounded-lg border-2 border-dashed">
@@ -49,19 +43,7 @@ function DashboardEditorPage() {
           </div>
         </div>
       ) : (
-        <div className="grid flex-1 gap-4 sm:grid-cols-2">
-          {dashboard.panels.map((panel) => (
-            <div
-              key={panel.id}
-              className="rounded-lg border bg-card p-4"
-            >
-              <h3 className="mb-2 font-semibold">{panel.title}</h3>
-              <pre className="rounded bg-muted p-2 text-xs">
-                {panel.query.sql || "No query yet"}
-              </pre>
-            </div>
-          ))}
-        </div>
+        <DashboardCanvas dashboardId={dashboardId} />
       )}
     </div>
   );

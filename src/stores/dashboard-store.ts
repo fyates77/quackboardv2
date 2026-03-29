@@ -14,8 +14,10 @@ interface DashboardState {
   activeDashboardId: string | null;
 
   createDashboard: (name: string, description?: string) => string;
+  duplicateDashboard: (id: string) => string | null;
   deleteDashboard: (id: string) => void;
   renameDashboard: (id: string, name: string) => void;
+  updateDashboardDescription: (id: string, description: string) => void;
   setActiveDashboard: (id: string | null) => void;
 
   addPanel: (dashboardId: string) => string;
@@ -63,6 +65,43 @@ export const useDashboardStore = create<DashboardState>()(
         return id;
       },
 
+      duplicateDashboard: (id) => {
+        const newId = createId();
+        let created = false;
+        set((state) => {
+          const dash = state.dashboards[id];
+          if (!dash) return state;
+          const now = new Date().toISOString();
+          const newPanels = dash.panels.map((p) => ({
+            ...p,
+            id: createId(),
+          }));
+          const idMap = new Map(
+            dash.panels.map((p, i) => [p.id, newPanels[i].id]),
+          );
+          const newLayout = dash.layout.map((l) => ({
+            ...l,
+            i: idMap.get(l.i) ?? l.i,
+          }));
+          created = true;
+          return {
+            dashboards: {
+              ...state.dashboards,
+              [newId]: {
+                ...dash,
+                id: newId,
+                name: `${dash.name} (copy)`,
+                createdAt: now,
+                updatedAt: now,
+                panels: newPanels,
+                layout: newLayout,
+              },
+            },
+          };
+        });
+        return created ? newId : null;
+      },
+
       deleteDashboard: (id) =>
         set((state) => {
           const { [id]: _, ...rest } = state.dashboards;
@@ -83,6 +122,22 @@ export const useDashboardStore = create<DashboardState>()(
             dashboards: {
               ...state.dashboards,
               [id]: { ...dash, name, updatedAt: new Date().toISOString() },
+            },
+          };
+        }),
+
+      updateDashboardDescription: (id, description) =>
+        set((state) => {
+          const dash = state.dashboards[id];
+          if (!dash) return state;
+          return {
+            dashboards: {
+              ...state.dashboards,
+              [id]: {
+                ...dash,
+                description,
+                updatedAt: new Date().toISOString(),
+              },
             },
           };
         }),
