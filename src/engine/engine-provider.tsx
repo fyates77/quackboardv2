@@ -5,6 +5,7 @@ import {
   type ReactNode,
 } from "react";
 import { DuckDBWasmEngine } from "./duckdb-wasm-engine";
+import { rehydrateDataSources } from "./rehydrate-data-sources";
 import type { QueryEngine } from "./types";
 
 export const EngineContext = createContext<QueryEngine | null>(null);
@@ -24,7 +25,8 @@ export function EngineProvider({ children, fallback }: EngineProviderProps) {
 
     eng
       .initialize()
-      .then(() => {
+      .then(async () => {
+        await rehydrateDataSources(eng);
         if (!cancelled) setEngine(eng);
       })
       .catch((err) => {

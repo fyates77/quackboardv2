@@ -1,6 +1,7 @@
 import { Link, useMatchRoute } from "@tanstack/react-router";
 import { LayoutDashboard, Database, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SchemaBrowser } from "@/components/data-sources/schema-browser";
 
 const navItems = [
   { to: "/dashboards", label: "Dashboards", icon: LayoutDashboard },
@@ -38,6 +39,14 @@ export function Sidebar() {
           );
         })}
       </nav>
+      <div className="border-t">
+        <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Tables
+        </div>
+        <div className="max-h-64 overflow-auto px-1 pb-3">
+          <SchemaBrowser />
+        </div>
+      </div>
     </aside>
   );
 }
