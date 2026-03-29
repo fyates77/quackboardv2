@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { Play, Loader2, X, AlertCircle, ChevronDown, ChevronRight, Maximize2 } from "lucide-react";
+import { Play, Loader2, X, AlertCircle, ChevronDown, ChevronRight, Maximize2, Download } from "lucide-react";
 import { useDashboardStore } from "@/stores/dashboard-store";
 import { useUIStore } from "@/stores/ui-store";
 import { useQuery } from "@/engine/use-query";
 import { inferVisualization } from "@/lib/viz-defaults";
 import { interpolateFilters } from "@/lib/sql-template";
 import { cn } from "@/lib/utils";
+import { exportResultsAsCsv, exportResultsAsJson } from "@/lib/export-results";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger, DialogContent } from "@/components/ui/dialog";
 import { SqlEditor } from "@/components/query/sql-editor";
@@ -270,17 +271,43 @@ export function PanelEditor({
         {/* Collapsible results table */}
         {data && (
           <div className="p-3">
-            <button
-              className="flex w-full items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-              onClick={() => setResultsOpen(!resultsOpen)}
-            >
-              {resultsOpen ? (
-                <ChevronDown className="h-3 w-3" />
-              ) : (
-                <ChevronRight className="h-3 w-3" />
-              )}
-              Results ({data.rowCount} rows, {data.elapsed.toFixed(1)}ms)
-            </button>
+            <div className="flex items-center justify-between">
+              <button
+                className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setResultsOpen(!resultsOpen)}
+              >
+                {resultsOpen ? (
+                  <ChevronDown className="h-3 w-3" />
+                ) : (
+                  <ChevronRight className="h-3 w-3" />
+                )}
+                Results ({data.rowCount} rows, {data.elapsed.toFixed(1)}ms)
+              </button>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 gap-1 px-2 text-[10px]"
+                  onClick={() =>
+                    exportResultsAsCsv(data, panel.title || "results")
+                  }
+                >
+                  <Download className="h-3 w-3" />
+                  CSV
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 gap-1 px-2 text-[10px]"
+                  onClick={() =>
+                    exportResultsAsJson(data, panel.title || "results")
+                  }
+                >
+                  <Download className="h-3 w-3" />
+                  JSON
+                </Button>
+              </div>
+            </div>
             {resultsOpen && (
               <div className="mt-2 max-h-60 overflow-auto rounded-lg border border-border/40">
                 <ResultsTable result={data} />

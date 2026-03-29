@@ -116,7 +116,8 @@ function DashboardEditorPage() {
         } catch {
           // Skip failures silently on filter change
         } finally {
-          if (!cancelled) handleLoadingChange(panel.id, false);
+          // Always clear loading — never leave panels stuck
+          handleLoadingChange(panel.id, false);
         }
       }
     })();
