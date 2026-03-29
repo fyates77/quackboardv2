@@ -11,7 +11,11 @@ type PlotType =
   | "histogram"
   | "box"
   | "heatmap"
-  | "waffle";
+  | "waffle"
+  | "tree"
+  | "density"
+  | "difference"
+  | "flow";
 
 interface PlotChartProps {
   type: PlotType;
@@ -27,6 +31,14 @@ function hasRequiredMapping(type: PlotType, mapping: ColumnMapping): boolean {
       return !!mapping.x;
     case "heatmap":
       return !!mapping.x && !!mapping.y && !!mapping.value;
+    case "tree":
+      return !!mapping.path;
+    case "density":
+      return !!mapping.x && !!mapping.y;
+    case "difference":
+      return !!mapping.x && !!mapping.y1 && !!mapping.y2;
+    case "flow":
+      return !!mapping.x1 && !!mapping.y1Flow && !!mapping.x2 && !!mapping.y2Flow;
     default:
       return !!mapping.x && !!mapping.y;
   }
@@ -38,6 +50,12 @@ function emptyHint(type: PlotType): string {
       return "Configure x column to render histogram";
     case "heatmap":
       return "Configure x, y, and value columns to render heatmap";
+    case "tree":
+      return "Configure path column to render tree";
+    case "difference":
+      return "Configure x, y1, and y2 columns to render difference chart";
+    case "flow":
+      return "Configure x1, y1, x2, y2 columns to render flow diagram";
     default:
       return "Configure x and y columns to render chart";
   }
@@ -249,14 +267,111 @@ export function PlotChart({ type, result, mapping, options }: PlotChartProps) {
           );
           break;
         }
+
+        case "tree": {
+          const pathCol = mapping.path;
+          if (!pathCol) break;
+          const delimiter = options.treeDelimiter ?? "/";
+          const treeFn = options.treeLayout === "cluster" ? Plot.cluster : Plot.tree;
+          marks.push(
+            treeFn(data, {
+              path: pathCol,
+              delimiter,
+              textLayout: "mirrored",
+              tip: options.showTooltip !== false,
+            }),
+          );
+          break;
+        }
+
+        case "density": {
+          if (!x || !y) break;
+          const yDensity = Array.isArray(y) ? y[0] : y;
+          marks.push(
+            Plot.density(data, {
+              x,
+              y: yDensity,
+              bandwidth: options.densityBandwidth ?? 20,
+              thresholds: options.densityThresholds ?? 20,
+              fill: colorField ?? "density",
+              fillOpacity: options.opacity ?? 0.5,
+              stroke: "currentColor",
+              strokeWidth: 0.5,
+            }),
+          );
+          if (options.densityShowPoints !== false) {
+            marks.push(
+              Plot.dot(data, {
+                x,
+                y: yDensity,
+                fill: colorField ?? "steelblue",
+                r: 2,
+                fillOpacity: 0.6,
+              }),
+            );
+          }
+          break;
+        }
+
+        case "difference": {
+          const { y1, y2 } = mapping;
+          if (!x || !y1 || !y2) break;
+          marks.push(
+            Plot.differenceY(data, {
+              x,
+              y1,
+              y2,
+              positiveFill: options.positiveFill ?? "#4ade80",
+              negativeFill: options.negativeFill ?? "#60a5fa",
+              tip: options.showTooltip !== false,
+            }),
+          );
+          marks.push(Plot.ruleY([0]));
+          break;
+        }
+
+        case "flow": {
+          const { x1, y1Flow, x2, y2Flow } = mapping;
+          if (!x1 || !y1Flow || !x2 || !y2Flow) break;
+          marks.push(
+            Plot.arrow(data, {
+              x1,
+              y1: y1Flow,
+              x2,
+              y2: y2Flow,
+              bend: options.flowBend ?? 0,
+              stroke: colorField ?? "currentColor",
+              strokeWidth: options.strokeWidth ?? 1.5,
+              strokeOpacity: options.opacity ?? 0.7,
+            }),
+          );
+          // Node dots at source and target
+          marks.push(
+            Plot.dot(data, {
+              x: x1,
+              y: y1Flow,
+              fill: "currentColor",
+              r: 3,
+            }),
+          );
+          marks.push(
+            Plot.dot(data, {
+              x: x2,
+              y: y2Flow,
+              fill: "currentColor",
+              r: 3,
+            }),
+          );
+          break;
+        }
       }
 
       // --- Tooltips (default on) ---
-      // Heatmap uses inline tip:true above. Box has built-in tips.
+      // Heatmap/tree/density/difference use inline tip above. Box has built-in tips.
+      const inlineTipTypes: PlotType[] = ["heatmap", "box", "tree", "density", "difference", "flow"];
       if (
         options.showTooltip !== false &&
-        type !== "heatmap" &&
-        type !== "box"
+        !inlineTipTypes.includes(type)
       ) {
         if (type === "histogram") {
           // Tip on binned data — use pointer on the rect

@@ -64,7 +64,13 @@ export type VisualizationType =
   | "waffle"
   | "pie"
   | "table"
-  | "kpi";
+  | "kpi"
+  | "tree"
+  | "density"
+  | "difference"
+  | "flow"
+  | "funnel"
+  | "treemap";
 
 export interface VisualizationConfig {
   type: VisualizationType;
@@ -84,6 +90,20 @@ export interface ColumnMapping {
   fx?: string;
   /** Facet vertical (small multiples by column) */
   fy?: string;
+  /** Delimiter-separated path column (tree, treemap) */
+  path?: string;
+  /** First Y column for difference chart */
+  y1?: string;
+  /** Second Y column for difference chart */
+  y2?: string;
+  /** Source X for flow/arrow */
+  x1?: string;
+  /** Source Y for flow/arrow */
+  y1Flow?: string;
+  /** Target X for flow/arrow */
+  x2?: string;
+  /** Target Y for flow/arrow */
+  y2Flow?: string;
 }
 
 export interface VisualizationOptions {
@@ -133,4 +153,28 @@ export interface VisualizationOptions {
     value: number;
     label?: string;
   }>;
+  /** Tree layout style */
+  treeLayout?: "tidy" | "cluster";
+  /** Tree path delimiter */
+  treeDelimiter?: string;
+  /** Density bandwidth */
+  densityBandwidth?: number;
+  /** Density contour thresholds */
+  densityThresholds?: number;
+  /** Show point overlay on density plot */
+  densityShowPoints?: boolean;
+  /** Positive fill color for difference chart */
+  positiveFill?: string;
+  /** Negative fill color for difference chart */
+  negativeFill?: string;
+  /** Flow arrow bend angle */
+  flowBend?: number;
+  /** Funnel: show percentage labels */
+  funnelShowPercentage?: boolean;
+  /** Funnel: show step-over-step conversion rates */
+  funnelShowConversion?: boolean;
+  /** Treemap tiling algorithm */
+  treemapTiling?: "squarify" | "binary" | "slice" | "dice";
+  /** Treemap inner padding */
+  treemapPadding?: number;
 }

@@ -10,6 +10,12 @@ import {
   CandlestickChart,
   Grid3X3,
   LayoutGrid,
+  FolderTree,
+  Layers3,
+  ArrowUpDown,
+  Workflow,
+  Funnel,
+  LayoutDashboard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,6 +55,12 @@ const VIZ_TYPES: { type: VisualizationType; label: string; icon: typeof BarChart
   { type: "box", label: "Box", icon: CandlestickChart },
   { type: "heatmap", label: "Heatmap", icon: Grid3X3 },
   { type: "waffle", label: "Waffle", icon: LayoutGrid },
+  { type: "tree", label: "Tree", icon: FolderTree },
+  { type: "density", label: "Density", icon: Layers3 },
+  { type: "difference", label: "Diff", icon: ArrowUpDown },
+  { type: "flow", label: "Flow", icon: Workflow },
+  { type: "funnel", label: "Funnel", icon: Funnel },
+  { type: "treemap", label: "Treemap", icon: LayoutDashboard },
   { type: "pie", label: "Pie", icon: PieChart },
   { type: "table", label: "Table", icon: Table2 },
   { type: "kpi", label: "KPI", icon: Hash },
@@ -57,6 +69,7 @@ const VIZ_TYPES: { type: VisualizationType; label: string; icon: typeof BarChart
 const PLOT_TYPES = new Set<VisualizationType>([
   "bar", "line", "area", "scatter",
   "histogram", "box", "heatmap", "waffle",
+  "tree", "density", "difference", "flow",
 ]);
 
 const XY_TYPES = new Set<VisualizationType>([
@@ -211,6 +224,138 @@ export function VizConfigPanel({
             </>
           )}
 
+          {/* Tree: path column */}
+          {t === "tree" && (
+            <>
+              <ColumnSelect
+                label="Path Column"
+                value={mapping.path}
+                columns={columns}
+                onChange={(path) => updateMapping({ path })}
+              />
+            </>
+          )}
+
+          {/* Density: x + y (reuses standard x/y) */}
+          {t === "density" && (
+            <>
+              <ColumnSelect
+                label="X Axis"
+                value={mapping.x}
+                columns={columns}
+                onChange={(x) => updateMapping({ x })}
+              />
+              <ColumnSelect
+                label="Y Axis"
+                value={Array.isArray(mapping.y) ? mapping.y[0] : mapping.y}
+                columns={columns}
+                onChange={(y) => updateMapping({ y })}
+              />
+              <ColumnSelect
+                label="Color (group)"
+                value={mapping.color}
+                columns={columns}
+                onChange={(color) => updateMapping({ color })}
+              />
+            </>
+          )}
+
+          {/* Difference: x + y1 + y2 */}
+          {t === "difference" && (
+            <>
+              <ColumnSelect
+                label="X Axis"
+                value={mapping.x}
+                columns={columns}
+                onChange={(x) => updateMapping({ x })}
+              />
+              <ColumnSelect
+                label="Y1 (baseline)"
+                value={mapping.y1}
+                columns={columns}
+                onChange={(y1) => updateMapping({ y1 })}
+              />
+              <ColumnSelect
+                label="Y2 (comparison)"
+                value={mapping.y2}
+                columns={columns}
+                onChange={(y2) => updateMapping({ y2 })}
+              />
+            </>
+          )}
+
+          {/* Flow: x1, y1, x2, y2 */}
+          {t === "flow" && (
+            <>
+              <ColumnSelect
+                label="Source X"
+                value={mapping.x1}
+                columns={columns}
+                onChange={(x1) => updateMapping({ x1 })}
+              />
+              <ColumnSelect
+                label="Source Y"
+                value={mapping.y1Flow}
+                columns={columns}
+                onChange={(y1Flow) => updateMapping({ y1Flow })}
+              />
+              <ColumnSelect
+                label="Target X"
+                value={mapping.x2}
+                columns={columns}
+                onChange={(x2) => updateMapping({ x2 })}
+              />
+              <ColumnSelect
+                label="Target Y"
+                value={mapping.y2Flow}
+                columns={columns}
+                onChange={(y2Flow) => updateMapping({ y2Flow })}
+              />
+              <ColumnSelect
+                label="Color"
+                value={mapping.color}
+                columns={columns}
+                onChange={(color) => updateMapping({ color })}
+              />
+            </>
+          )}
+
+          {/* Funnel: category + value (same as pie) */}
+          {t === "funnel" && (
+            <>
+              <ColumnSelect
+                label="Stage (category)"
+                value={mapping.category}
+                columns={columns}
+                onChange={(category) => updateMapping({ category })}
+              />
+              <ColumnSelect
+                label="Value"
+                value={mapping.value}
+                columns={columns}
+                onChange={(value) => updateMapping({ value })}
+              />
+            </>
+          )}
+
+          {/* Treemap: path + value */}
+          {t === "treemap" && (
+            <>
+              <ColumnSelect
+                label="Path Column"
+                value={mapping.path}
+                columns={columns}
+                onChange={(path) => updateMapping({ path })}
+              />
+              <ColumnSelect
+                label="Value (size)"
+                value={mapping.value}
+                columns={columns}
+                onChange={(value) => updateMapping({ value })}
+              />
+            </>
+          )}
+
           {/* Pie */}
           {t === "pie" && (
             <>
@@ -339,6 +484,158 @@ export function VizConfigPanel({
             <span className="w-8 text-right text-xs text-muted-foreground">
               {options.thresholds ?? 20}
             </span>
+          </div>
+        </div>
+      )}
+
+      {(t === "tree" || t === "treemap") && columns.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-xs font-medium text-muted-foreground">
+            Path Delimiter
+          </div>
+          <input
+            className="w-full rounded border bg-background px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-ring"
+            placeholder="/"
+            value={options.treeDelimiter ?? "/"}
+            onChange={(e) =>
+              updateOptions({ treeDelimiter: e.target.value || "/" })
+            }
+          />
+        </div>
+      )}
+
+      {t === "tree" && columns.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-xs font-medium text-muted-foreground">
+            Layout
+          </div>
+          <div className="flex gap-1">
+            {(["tidy", "cluster"] as const).map((layout) => (
+              <Button
+                key={layout}
+                variant={
+                  (options.treeLayout ?? "tidy") === layout ? "default" : "outline"
+                }
+                size="sm"
+                className="text-xs capitalize"
+                onClick={() => updateOptions({ treeLayout: layout })}
+              >
+                {layout}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {t === "density" && columns.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-xs font-medium text-muted-foreground">
+            Bandwidth
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="range"
+              min={5}
+              max={100}
+              step={5}
+              value={options.densityBandwidth ?? 20}
+              onChange={(e) =>
+                updateOptions({ densityBandwidth: Number(e.target.value) })
+              }
+              className="flex-1"
+            />
+            <span className="w-8 text-right text-xs text-muted-foreground">
+              {options.densityBandwidth ?? 20}
+            </span>
+          </div>
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={options.densityShowPoints !== false}
+              onChange={(e) =>
+                updateOptions({ densityShowPoints: e.target.checked })
+              }
+            />
+            Show data points
+          </label>
+        </div>
+      )}
+
+      {t === "difference" && columns.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-xs font-medium text-muted-foreground">
+            Colors
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="text-[10px] text-muted-foreground">Y1 &gt; Y2</label>
+              <input
+                type="color"
+                value={options.positiveFill ?? "#4ade80"}
+                onChange={(e) => updateOptions({ positiveFill: e.target.value })}
+                className="h-7 w-full cursor-pointer rounded border"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-muted-foreground">Y2 &gt; Y1</label>
+              <input
+                type="color"
+                value={options.negativeFill ?? "#60a5fa"}
+                onChange={(e) => updateOptions({ negativeFill: e.target.value })}
+                className="h-7 w-full cursor-pointer rounded border"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {t === "funnel" && columns.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-xs font-medium text-muted-foreground">
+            Options
+          </div>
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={options.funnelShowPercentage !== false}
+              onChange={(e) =>
+                updateOptions({ funnelShowPercentage: e.target.checked })
+              }
+            />
+            Show percentages
+          </label>
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={options.funnelShowConversion !== false}
+              onChange={(e) =>
+                updateOptions({ funnelShowConversion: e.target.checked })
+              }
+            />
+            Show conversion rates
+          </label>
+        </div>
+      )}
+
+      {t === "treemap" && columns.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-xs font-medium text-muted-foreground">
+            Tiling
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {(["squarify", "binary", "slice", "dice"] as const).map((tiling) => (
+              <Button
+                key={tiling}
+                variant={
+                  (options.treemapTiling ?? "squarify") === tiling ? "default" : "outline"
+                }
+                size="sm"
+                className="text-xs capitalize"
+                onClick={() => updateOptions({ treemapTiling: tiling })}
+              >
+                {tiling}
+              </Button>
+            ))}
           </div>
         </div>
       )}

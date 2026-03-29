@@ -26,6 +26,12 @@ function isCategorical(type: string): boolean {
   return !isNumeric(type) && !isTemporal(type);
 }
 
+/** Check if a column name looks like a hierarchical path (contains common delimiters). */
+function looksLikePath(name: string): boolean {
+  const n = name.toLowerCase();
+  return n === "path" || n.includes("path") || n.includes("hierarchy");
+}
+
 export function inferVisualization(
   columns: ColumnInfo[],
 ): VisualizationConfig {
@@ -38,6 +44,29 @@ export function inferVisualization(
     return {
       type: "kpi",
       mapping: { value: numericCols[0].name },
+      options: {},
+    };
+  }
+
+  // Single VARCHAR column that looks like a path -> tree
+  if (columns.length === 1 && categoricalCols.length === 1 && looksLikePath(categoricalCols[0].name)) {
+    return {
+      type: "tree",
+      mapping: { path: categoricalCols[0].name },
+      options: {},
+    };
+  }
+
+  // 1 path-like VARCHAR + 1 numeric -> treemap
+  if (
+    categoricalCols.length === 1 &&
+    numericCols.length === 1 &&
+    columns.length === 2 &&
+    looksLikePath(categoricalCols[0].name)
+  ) {
+    return {
+      type: "treemap",
+      mapping: { path: categoricalCols[0].name, value: numericCols[0].name },
       options: {},
     };
   }

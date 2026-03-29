@@ -4,6 +4,8 @@ import { PlotChart } from "./plot-chart";
 import { PieChart } from "./pie-chart";
 import { KpiCard } from "./kpi-card";
 import { DataTable } from "./data-table";
+import { FunnelChart } from "./funnel-chart";
+import { TreemapChart } from "./treemap-chart";
 
 interface ChartRendererProps {
   result: QueryResult;
@@ -28,6 +30,10 @@ export function ChartRenderer({ result, config }: ChartRendererProps) {
     case "box":
     case "heatmap":
     case "waffle":
+    case "tree":
+    case "density":
+    case "difference":
+    case "flow":
       return (
         <PlotChart
           type={config.type}
@@ -39,6 +45,24 @@ export function ChartRenderer({ result, config }: ChartRendererProps) {
 
     case "pie":
       return <PieChart result={result} mapping={config.mapping} />;
+
+    case "funnel":
+      return (
+        <FunnelChart
+          result={result}
+          mapping={config.mapping}
+          options={config.options}
+        />
+      );
+
+    case "treemap":
+      return (
+        <TreemapChart
+          result={result}
+          mapping={config.mapping}
+          options={config.options}
+        />
+      );
 
     case "kpi":
       return (
