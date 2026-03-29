@@ -47,9 +47,13 @@ export function PanelEditor({
     setSqlDraft(panel.query.sql);
   }, [panel.id, panel.query.sql]);
 
-  // Push results to parent whenever they change
+  // Push results to parent whenever a query actually returns data.
+  // Skip null — the hook starts with null and we don't want to clear
+  // an existing result just because the editor opened.
   useEffect(() => {
-    onQueryResult(panel.id, data);
+    if (data) {
+      onQueryResult(panel.id, data);
+    }
   }, [panel.id, data, onQueryResult]);
 
   const handleRun = useCallback(async () => {
