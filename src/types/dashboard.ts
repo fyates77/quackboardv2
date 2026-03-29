@@ -58,6 +58,10 @@ export type VisualizationType =
   | "line"
   | "area"
   | "scatter"
+  | "histogram"
+  | "box"
+  | "heatmap"
+  | "waffle"
   | "pie"
   | "table"
   | "kpi";
@@ -76,6 +80,10 @@ export interface ColumnMapping {
   label?: string;
   value?: string;
   category?: string;
+  /** Facet horizontal (small multiples by column) */
+  fx?: string;
+  /** Facet vertical (small multiples by column) */
+  fy?: string;
 }
 
 export interface VisualizationOptions {
@@ -98,4 +106,31 @@ export interface VisualizationOptions {
   /** Grid lines */
   xGrid?: boolean;
   yGrid?: boolean;
+  /** Histogram bin count */
+  thresholds?: number;
+  /** Show linear regression trend line (scatter/line) */
+  showTrendLine?: boolean;
+  /** Normalize Y values (line/area): basis for normalization */
+  normalize?: "first" | "last" | "max" | "sum" | "mean" | null;
+  /** Rolling window size for smoothing (line/area) */
+  windowSize?: number;
+  /** Rolling window reducer */
+  windowReduce?: "mean" | "median" | "min" | "max" | "sum";
+  /** Scale config */
+  xScaleType?: "linear" | "log" | "sqrt" | "time" | "band" | "point";
+  yScaleType?: "linear" | "log" | "sqrt" | "time" | "band" | "point";
+  yZero?: boolean;
+  yNice?: boolean;
+  xReverse?: boolean;
+  yReverse?: boolean;
+  /** Mark fill/stroke opacity */
+  opacity?: number;
+  /** Line/area stroke width */
+  strokeWidth?: number;
+  /** Reference lines */
+  referenceLines?: Array<{
+    axis: "x" | "y";
+    value: number;
+    label?: string;
+  }>;
 }

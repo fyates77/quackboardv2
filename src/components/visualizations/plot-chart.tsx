@@ -3,11 +3,44 @@ import * as Plot from "@observablehq/plot";
 import type { QueryResult } from "@/engine/types";
 import type { ColumnMapping, VisualizationOptions } from "@/types/dashboard";
 
+type PlotType =
+  | "bar"
+  | "line"
+  | "area"
+  | "scatter"
+  | "histogram"
+  | "box"
+  | "heatmap"
+  | "waffle";
+
 interface PlotChartProps {
-  type: "bar" | "line" | "area" | "scatter";
+  type: PlotType;
   result: QueryResult;
   mapping: ColumnMapping;
   options: VisualizationOptions;
+}
+
+/** Check whether the mapping has enough columns for this chart type. */
+function hasRequiredMapping(type: PlotType, mapping: ColumnMapping): boolean {
+  switch (type) {
+    case "histogram":
+      return !!mapping.x;
+    case "heatmap":
+      return !!mapping.x && !!mapping.y && !!mapping.value;
+    default:
+      return !!mapping.x && !!mapping.y;
+  }
+}
+
+function emptyHint(type: PlotType): string {
+  switch (type) {
+    case "histogram":
+      return "Configure x column to render histogram";
+    case "heatmap":
+      return "Configure x, y, and value columns to render heatmap";
+    default:
+      return "Configure x and y columns to render chart";
+  }
 }
 
 export function PlotChart({ type, result, mapping, options }: PlotChartProps) {
@@ -16,126 +49,279 @@ export function PlotChart({ type, result, mapping, options }: PlotChartProps) {
   useEffect(() => {
     const el = containerRef.current;
     if (!el || result.rows.length === 0) return;
+    if (!hasRequiredMapping(type, mapping)) return;
 
     const { x, y, color } = mapping;
-    if (!x || !y) return;
+    const data = result.rows as Record<string, unknown>[];
 
-    const yColumns = Array.isArray(y) ? y : [y];
+    // --- Prepare multi-series data for x/y chart types ---
+    const xyTypes: PlotType[] = ["bar", "line", "area", "scatter", "waffle"];
+    let plotData = data;
+    let yField: string | undefined;
+    let colorField = color;
 
-    // If multiple y columns, reshape data into long format
-    let data: Record<string, unknown>[];
-    let yField: string;
-    let colorField: string | undefined;
-
-    if (yColumns.length > 1) {
-      data = [];
-      for (const row of result.rows) {
-        for (const col of yColumns) {
-          data.push({ ...row, _series: col, _value: row[col] });
+    if (xyTypes.includes(type) && y) {
+      const yColumns = Array.isArray(y) ? y : [y];
+      if (yColumns.length > 1) {
+        plotData = [];
+        for (const row of data) {
+          for (const col of yColumns) {
+            plotData.push({ ...row, _series: col, _value: row[col] });
+          }
         }
+        yField = "_value";
+        colorField = "_series";
+      } else {
+        yField = yColumns[0];
       }
-      yField = "_value";
-      colorField = "_series";
-    } else {
-      data = result.rows as Record<string, unknown>[];
-      yField = yColumns[0];
-      colorField = color;
+    } else if (type === "box" && y) {
+      yField = Array.isArray(y) ? y[0] : y;
     }
 
     const render = () => {
       const marks: Plot.Markish[] = [];
 
-      // --- Build marks per chart type ---
+      // Facet channels — spread into marks that support it
+      const facet: Record<string, string> = {};
+      if (mapping.fx) facet.fx = mapping.fx;
+      if (mapping.fy) facet.fy = mapping.fy;
+
       switch (type) {
-        case "bar":
+        case "bar": {
+          if (!x || !yField) break;
           if (options.horizontal) {
             marks.push(
-              Plot.barX(data, {
+              Plot.barX(plotData, {
                 y: x,
                 x: yField,
                 fill: colorField ?? "steelblue",
+                ...facet,
               }),
             );
           } else {
             marks.push(
-              Plot.barY(data, {
+              Plot.barY(plotData, {
                 x,
                 y: yField,
                 fill: colorField ?? "steelblue",
+                ...facet,
               }),
             );
           }
           break;
+        }
 
-        case "line":
-          marks.push(
-            Plot.lineY(data, {
-              x,
-              y: yField,
-              stroke: colorField ?? "steelblue",
-              curve: options.curve ?? "linear",
-            }),
-          );
+        case "waffle": {
+          if (!x || !yField) break;
+          if (options.horizontal) {
+            marks.push(
+              Plot.waffleX(plotData, {
+                y: x,
+                x: yField,
+                fill: colorField ?? "steelblue",
+                ...facet,
+              }),
+            );
+          } else {
+            marks.push(
+              Plot.waffleY(plotData, {
+                x,
+                y: yField,
+                fill: colorField ?? "steelblue",
+                ...facet,
+              }),
+            );
+          }
+          break;
+        }
+
+        case "line": {
+          if (!x || !yField) break;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let lineOpts: any = {
+            x,
+            y: yField,
+            stroke: colorField ?? "steelblue",
+            curve: options.curve ?? "linear",
+            strokeWidth: options.strokeWidth ?? undefined,
+            strokeOpacity: options.opacity ?? undefined,
+            ...facet,
+          };
+          if (options.windowSize && options.windowSize > 1) {
+            lineOpts = Plot.windowY(
+              { k: options.windowSize, reduce: options.windowReduce ?? "mean" },
+              lineOpts,
+            );
+          }
+          if (options.normalize) {
+            lineOpts = Plot.normalizeY(options.normalize, lineOpts);
+          }
+          marks.push(Plot.lineY(plotData, lineOpts));
           marks.push(Plot.ruleY([0]));
           break;
+        }
 
-        case "area":
-          marks.push(
-            Plot.areaY(data, {
-              x,
-              y: yField,
-              fill: colorField ?? "steelblue",
-              curve: options.curve ?? "linear",
-              fillOpacity: 0.3,
-            }),
-          );
-          marks.push(
-            Plot.lineY(data, {
-              x,
-              y: yField,
-              stroke: colorField ?? "steelblue",
-              curve: options.curve ?? "linear",
-            }),
-          );
+        case "area": {
+          if (!x || !yField) break;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let areaOpts: any = {
+            x,
+            y: yField,
+            fill: colorField ?? "steelblue",
+            curve: options.curve ?? "linear",
+            fillOpacity: options.opacity ?? 0.3,
+            ...facet,
+          };
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let areaLineOpts: any = {
+            x,
+            y: yField,
+            stroke: colorField ?? "steelblue",
+            curve: options.curve ?? "linear",
+            strokeWidth: options.strokeWidth ?? undefined,
+            ...facet,
+          };
+          if (options.windowSize && options.windowSize > 1) {
+            areaOpts = Plot.windowY(
+              { k: options.windowSize, reduce: options.windowReduce ?? "mean" },
+              areaOpts,
+            );
+            areaLineOpts = Plot.windowY(
+              { k: options.windowSize, reduce: options.windowReduce ?? "mean" },
+              areaLineOpts,
+            );
+          }
+          if (options.normalize) {
+            areaOpts = Plot.normalizeY(options.normalize, areaOpts);
+            areaLineOpts = Plot.normalizeY(options.normalize, areaLineOpts);
+          }
+          marks.push(Plot.areaY(plotData, areaOpts));
+          marks.push(Plot.lineY(plotData, areaLineOpts));
           break;
+        }
 
-        case "scatter":
+        case "scatter": {
+          if (!x || !yField) break;
           marks.push(
-            Plot.dot(data, {
+            Plot.dot(plotData, {
               x,
               y: yField,
               fill: colorField ?? "steelblue",
               r: mapping.size ?? 3,
+              ...facet,
             }),
           );
           break;
+        }
+
+        case "histogram": {
+          if (!x) break;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const binOpts: any = { x };
+          if (colorField) binOpts.fill = colorField;
+          else binOpts.fill = "steelblue";
+          if (options.thresholds) binOpts.thresholds = options.thresholds;
+          marks.push(Plot.rectY(data, Plot.binX({ y: "count" }, binOpts)));
+          marks.push(Plot.ruleY([0]));
+          break;
+        }
+
+        case "box": {
+          if (!x || !yField) break;
+          marks.push(
+            Plot.boxY(data, { x, y: yField }),
+          );
+          break;
+        }
+
+        case "heatmap": {
+          if (!x || !y) break;
+          const yStr = Array.isArray(y) ? y[0] : y;
+          const fillCol = mapping.value;
+          if (!fillCol) break;
+          marks.push(
+            Plot.cell(data, {
+              x,
+              y: yStr,
+              fill: fillCol,
+              tip: options.showTooltip !== false,
+            }),
+          );
+          break;
+        }
       }
 
       // --- Tooltips (default on) ---
-      if (options.showTooltip !== false) {
-        const tipChannels: Record<string, string> = { x, y: yField };
-        if (colorField) tipChannels.fill = colorField;
-
-        if (type === "bar") {
+      // Heatmap uses inline tip:true above. Box has built-in tips.
+      if (
+        options.showTooltip !== false &&
+        type !== "heatmap" &&
+        type !== "box"
+      ) {
+        if (type === "histogram") {
+          // Tip on binned data — use pointer on the rect
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const tipBinOpts: any = { x: x! };
+          if (colorField) tipBinOpts.fill = colorField;
+          marks.push(
+            Plot.tip(data, Plot.pointer(Plot.binX({ y: "count" }, tipBinOpts))),
+          );
+        } else if (type === "bar" || type === "waffle") {
           if (options.horizontal) {
             marks.push(
-              Plot.tip(data, Plot.pointerY({ y: x, x: yField, fill: colorField ?? undefined })),
+              Plot.tip(plotData, Plot.pointerY({ y: x!, x: yField!, fill: colorField ?? undefined })),
             );
           } else {
             marks.push(
-              Plot.tip(data, Plot.pointerX({ x, y: yField, fill: colorField ?? undefined })),
+              Plot.tip(plotData, Plot.pointerX({ x: x!, y: yField!, fill: colorField ?? undefined })),
             );
           }
-        } else {
+        } else if (x && yField) {
           marks.push(
-            Plot.tip(data, Plot.pointer({ x, y: yField, stroke: colorField ?? undefined })),
+            Plot.tip(plotData, Plot.pointer({ x, y: yField, stroke: colorField ?? undefined })),
           );
         }
       }
 
       // --- Crosshair for line/area (opt-in) ---
-      if (options.crosshair && (type === "line" || type === "area")) {
-        marks.push(Plot.crosshair(data, { x, y: yField }));
+      if (options.crosshair && (type === "line" || type === "area") && x && yField) {
+        marks.push(Plot.crosshair(plotData, { x, y: yField }));
+      }
+
+      // --- Trend line (scatter/line) ---
+      if (options.showTrendLine && x && yField && (type === "scatter" || type === "line")) {
+        marks.push(
+          Plot.linearRegressionY(plotData, {
+            x,
+            y: yField,
+            stroke: "currentColor",
+            strokeWidth: 1.5,
+            strokeDasharray: "4,4",
+          }),
+        );
+      }
+
+      // --- Reference lines ---
+      if (options.referenceLines) {
+        for (const ref of options.referenceLines) {
+          if (ref.axis === "y") {
+            marks.push(Plot.ruleY([ref.value], { stroke: "red", strokeDasharray: "4,4" }));
+            if (ref.label) {
+              marks.push(
+                Plot.text([{ text: ref.label, value: ref.value }], {
+                  y: "value",
+                  text: "text",
+                  frameAnchor: "right",
+                  dx: -4,
+                  fill: "red",
+                  fontSize: 10,
+                }),
+              );
+            }
+          } else {
+            marks.push(Plot.ruleX([ref.value], { stroke: "red", strokeDasharray: "4,4" }));
+          }
+        }
       }
 
       // --- Plot options ---
@@ -154,15 +340,37 @@ export function PlotChart({ type, result, mapping, options }: PlotChartProps) {
         x: {
           label: options.xLabel ?? null,
           grid: options.xGrid ?? false,
+          ...(options.xScaleType ? { type: options.xScaleType } : {}),
+          ...(options.xReverse ? { reverse: true } : {}),
         },
         y: {
           label: options.yLabel ?? null,
           grid: options.yGrid ?? false,
+          ...(options.yScaleType ? { type: options.yScaleType } : {}),
+          ...(options.yZero ? { zero: true } : {}),
+          ...(options.yNice !== false ? { nice: true } : {}),
+          ...(options.yReverse ? { reverse: true } : {}),
         },
       };
 
+      // Faceting
+      if (mapping.fx) {
+        plotOptions.fx = { label: null };
+      }
+      if (mapping.fy) {
+        plotOptions.fy = { label: null };
+      }
+
       // Color scheme
-      if (options.colorScheme && colorField) {
+      if (type === "heatmap") {
+        // Sequential scheme for numeric fill
+        plotOptions.color = {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          scheme: (options.colorScheme ?? "ylgnbu") as any,
+          type: "sequential",
+          legend: options.showLegend !== false,
+        };
+      } else if (options.colorScheme && colorField) {
         plotOptions.color = {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           scheme: options.colorScheme as any,
@@ -190,10 +398,10 @@ export function PlotChart({ type, result, mapping, options }: PlotChartProps) {
     };
   }, [type, result, mapping, options]);
 
-  if (!mapping.x || !mapping.y) {
+  if (!hasRequiredMapping(type, mapping)) {
     return (
       <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-        Configure x and y columns to render chart
+        {emptyHint(type)}
       </div>
     );
   }

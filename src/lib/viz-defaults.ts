@@ -82,6 +82,19 @@ export function inferVisualization(
     };
   }
 
+  // 2 categorical + 1 numeric -> heatmap
+  if (categoricalCols.length >= 2 && numericCols.length === 1) {
+    return {
+      type: "heatmap",
+      mapping: {
+        x: categoricalCols[0].name,
+        y: categoricalCols[1].name,
+        value: numericCols[0].name,
+      },
+      options: {},
+    };
+  }
+
   // Default: table
   return {
     type: "table",

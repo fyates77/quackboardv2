@@ -24,6 +24,10 @@ export function ChartRenderer({ result, config }: ChartRendererProps) {
     case "line":
     case "area":
     case "scatter":
+    case "histogram":
+    case "box":
+    case "heatmap":
+    case "waffle":
       return (
         <PlotChart
           type={config.type}

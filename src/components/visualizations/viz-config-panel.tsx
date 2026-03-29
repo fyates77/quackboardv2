@@ -6,12 +6,20 @@ import {
   PieChart,
   Table2,
   Hash,
-  ChevronDown,
-  ChevronRight,
+  BarChart2,
+  CandlestickChart,
+  Grid3X3,
+  LayoutGrid,
 } from "lucide-react";
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import {
+  ColumnSelect,
+  MultiColumnSelect,
+  CollapsibleSection,
+  ColorSchemePicker,
+  CATEGORICAL_SCHEMES,
+  SEQUENTIAL_SCHEMES,
+} from "./config-controls";
 import type { QueryResult } from "@/engine/types";
 import type {
   VisualizationType,
@@ -19,6 +27,8 @@ import type {
   ColumnMapping,
   VisualizationOptions,
 } from "@/types/dashboard";
+
+/* ─── Props ──────────────────────────────────────────────────── */
 
 interface VizConfigPanelProps {
   config: VisualizationConfig;
@@ -28,129 +38,32 @@ interface VizConfigPanelProps {
   onChangeOptions: (options: VisualizationOptions) => void;
 }
 
+/* ─── Constants ──────────────────────────────────────────────── */
+
 const VIZ_TYPES: { type: VisualizationType; label: string; icon: typeof BarChart3 }[] = [
   { type: "bar", label: "Bar", icon: BarChart3 },
   { type: "line", label: "Line", icon: LineChart },
   { type: "area", label: "Area", icon: AreaChart },
   { type: "scatter", label: "Scatter", icon: ScatterChart },
+  { type: "histogram", label: "Histogram", icon: BarChart2 },
+  { type: "box", label: "Box", icon: CandlestickChart },
+  { type: "heatmap", label: "Heatmap", icon: Grid3X3 },
+  { type: "waffle", label: "Waffle", icon: LayoutGrid },
   { type: "pie", label: "Pie", icon: PieChart },
   { type: "table", label: "Table", icon: Table2 },
   { type: "kpi", label: "KPI", icon: Hash },
 ];
 
-const COLOR_SCHEMES = [
-  { name: "accent", label: "Accent", colors: ["#7fc97f", "#beaed4", "#fdc086", "#ffff99", "#386cb0"] },
-  { name: "category10", label: "Category 10", colors: ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"] },
-  { name: "dark2", label: "Dark 2", colors: ["#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#66a61e"] },
-  { name: "paired", label: "Paired", colors: ["#a6cee3", "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99"] },
-  { name: "set1", label: "Set 1", colors: ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00"] },
-  { name: "set2", label: "Set 2", colors: ["#66c2a5", "#fc8d62", "#8da0cb", "#e78ac3", "#a6d854"] },
-  { name: "tableau10", label: "Tableau 10", colors: ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f"] },
-  { name: "observable10", label: "Observable", colors: ["#4269d0", "#efb118", "#ff725c", "#6cc5b0", "#3ca951"] },
-];
+const PLOT_TYPES = new Set<VisualizationType>([
+  "bar", "line", "area", "scatter",
+  "histogram", "box", "heatmap", "waffle",
+]);
 
-function ColumnSelect({
-  label,
-  value,
-  columns,
-  onChange,
-  allowNone,
-}: {
-  label: string;
-  value: string | undefined;
-  columns: string[];
-  onChange: (val: string | undefined) => void;
-  allowNone?: boolean;
-}) {
-  return (
-    <div className="space-y-1">
-      <label className="text-xs font-medium text-muted-foreground">
-        {label}
-      </label>
-      <select
-        className="w-full rounded border bg-background px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-ring"
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value || undefined)}
-      >
-        {allowNone !== false && <option value="">None</option>}
-        {columns.map((col) => (
-          <option key={col} value={col}>
-            {col}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
+const XY_TYPES = new Set<VisualizationType>([
+  "bar", "line", "area", "scatter", "waffle",
+]);
 
-function MultiColumnSelect({
-  label,
-  value,
-  columns,
-  onChange,
-}: {
-  label: string;
-  value: string | string[] | undefined;
-  columns: string[];
-  onChange: (val: string | string[] | undefined) => void;
-}) {
-  const selected = Array.isArray(value) ? value : value ? [value] : [];
-
-  const toggle = (col: string) => {
-    const next = selected.includes(col)
-      ? selected.filter((c) => c !== col)
-      : [...selected, col];
-    onChange(next.length === 0 ? undefined : next.length === 1 ? next[0] : next);
-  };
-
-  return (
-    <div className="space-y-1">
-      <label className="text-xs font-medium text-muted-foreground">
-        {label}
-      </label>
-      <div className="flex flex-wrap gap-1">
-        {columns.map((col) => (
-          <button
-            key={col}
-            className={cn(
-              "rounded border px-2 py-0.5 text-xs transition-colors",
-              selected.includes(col)
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-input hover:bg-accent",
-            )}
-            onClick={() => toggle(col)}
-          >
-            {col}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function CollapsibleSection({
-  title,
-  defaultOpen = false,
-  children,
-}: {
-  title: string;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div>
-      <button
-        className="flex w-full items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-        onClick={() => setOpen(!open)}
-      >
-        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-        {title}
-      </button>
-      {open && <div className="mt-2 space-y-3">{children}</div>}
-    </div>
-  );
-}
+/* ─── Main Component ─────────────────────────────────────────── */
 
 export function VizConfigPanel({
   config,
@@ -161,12 +74,10 @@ export function VizConfigPanel({
 }: VizConfigPanelProps) {
   const columns = result?.columns.map((c) => c.name) ?? [];
   const { mapping, options } = config;
+  const t = config.type;
 
-  const isPlotChart =
-    config.type === "bar" ||
-    config.type === "line" ||
-    config.type === "area" ||
-    config.type === "scatter";
+  const isPlot = PLOT_TYPES.has(t);
+  const isXY = XY_TYPES.has(t);
 
   const updateMapping = (patch: Partial<ColumnMapping>) => {
     onChangeMapping({ ...mapping, ...patch });
@@ -178,6 +89,8 @@ export function VizConfigPanel({
 
   return (
     <div className="space-y-4">
+      {/* ═══ TIER 1: Always visible — type + mapping ═══ */}
+
       {/* Type selector */}
       <div className="space-y-1">
         <label className="text-xs font-medium text-muted-foreground">
@@ -187,7 +100,7 @@ export function VizConfigPanel({
           {VIZ_TYPES.map(({ type, label, icon: Icon }) => (
             <Button
               key={type}
-              variant={config.type === type ? "default" : "outline"}
+              variant={t === type ? "default" : "outline"}
               size="sm"
               className="flex h-auto flex-col gap-0.5 px-2 py-1.5 text-xs"
               onClick={() => onChangeType(type)}
@@ -199,14 +112,15 @@ export function VizConfigPanel({
         </div>
       </div>
 
-      {/* Column mappings -- vary by chart type */}
+      {/* Column mappings */}
       {columns.length > 0 && (
         <div className="space-y-3">
           <div className="text-xs font-medium text-muted-foreground">
             Column Mapping
           </div>
 
-          {isPlotChart && (
+          {/* Standard x/y/color: bar, line, area, scatter, waffle */}
+          {isXY && (
             <>
               <ColumnSelect
                 label="X Axis"
@@ -226,7 +140,7 @@ export function VizConfigPanel({
                 columns={columns}
                 onChange={(color) => updateMapping({ color })}
               />
-              {config.type === "scatter" && (
+              {t === "scatter" && (
                 <ColumnSelect
                   label="Size"
                   value={mapping.size}
@@ -237,7 +151,68 @@ export function VizConfigPanel({
             </>
           )}
 
-          {config.type === "pie" && (
+          {/* Histogram: X (numeric to bin) + optional Color */}
+          {t === "histogram" && (
+            <>
+              <ColumnSelect
+                label="Column (numeric)"
+                value={mapping.x}
+                columns={columns}
+                onChange={(x) => updateMapping({ x })}
+              />
+              <ColumnSelect
+                label="Color (group by)"
+                value={mapping.color}
+                columns={columns}
+                onChange={(color) => updateMapping({ color })}
+              />
+            </>
+          )}
+
+          {/* Box: X (categorical) + Y (numeric) */}
+          {t === "box" && (
+            <>
+              <ColumnSelect
+                label="Category (X)"
+                value={mapping.x}
+                columns={columns}
+                onChange={(x) => updateMapping({ x })}
+              />
+              <ColumnSelect
+                label="Value (Y)"
+                value={Array.isArray(mapping.y) ? mapping.y[0] : mapping.y}
+                columns={columns}
+                onChange={(y) => updateMapping({ y })}
+              />
+            </>
+          )}
+
+          {/* Heatmap: X + Y + Value (fill) */}
+          {t === "heatmap" && (
+            <>
+              <ColumnSelect
+                label="X Axis"
+                value={mapping.x}
+                columns={columns}
+                onChange={(x) => updateMapping({ x })}
+              />
+              <ColumnSelect
+                label="Y Axis"
+                value={Array.isArray(mapping.y) ? mapping.y[0] : mapping.y}
+                columns={columns}
+                onChange={(y) => updateMapping({ y })}
+              />
+              <ColumnSelect
+                label="Value (fill color)"
+                value={mapping.value}
+                columns={columns}
+                onChange={(value) => updateMapping({ value })}
+              />
+            </>
+          )}
+
+          {/* Pie */}
+          {t === "pie" && (
             <>
               <ColumnSelect
                 label="Category"
@@ -254,7 +229,8 @@ export function VizConfigPanel({
             </>
           )}
 
-          {config.type === "kpi" && (
+          {/* KPI */}
+          {t === "kpi" && (
             <>
               <ColumnSelect
                 label="Value"
@@ -301,8 +277,8 @@ export function VizConfigPanel({
         </div>
       )}
 
-      {/* Type-specific options */}
-      {config.type === "bar" && columns.length > 0 && (
+      {/* Type-specific quick options (always visible when relevant) */}
+      {(t === "bar" || t === "waffle") && columns.length > 0 && (
         <div className="space-y-2">
           <div className="text-xs font-medium text-muted-foreground">
             Options
@@ -315,41 +291,63 @@ export function VizConfigPanel({
                 updateOptions({ horizontal: e.target.checked })
               }
             />
-            Horizontal bars
+            Horizontal
           </label>
         </div>
       )}
 
-      {(config.type === "line" || config.type === "area") &&
-        columns.length > 0 && (
-          <div className="space-y-2">
-            <div className="text-xs font-medium text-muted-foreground">
-              Curve
-            </div>
-            <div className="flex gap-1">
-              {(["linear", "step", "natural"] as const).map((curve) => (
-                <Button
-                  key={curve}
-                  variant={
-                    (options.curve ?? "linear") === curve
-                      ? "default"
-                      : "outline"
-                  }
-                  size="sm"
-                  className="text-xs capitalize"
-                  onClick={() => updateOptions({ curve })}
-                >
-                  {curve}
-                </Button>
-              ))}
-            </div>
+      {(t === "line" || t === "area") && columns.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-xs font-medium text-muted-foreground">
+            Curve
           </div>
-        )}
+          <div className="flex gap-1">
+            {(["linear", "step", "natural"] as const).map((curve) => (
+              <Button
+                key={curve}
+                variant={
+                  (options.curve ?? "linear") === curve ? "default" : "outline"
+                }
+                size="sm"
+                className="text-xs capitalize"
+                onClick={() => updateOptions({ curve })}
+              >
+                {curve}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
 
-      {/* Customize section — tooltips, crosshair, color scheme */}
-      {isPlotChart && columns.length > 0 && (
+      {t === "histogram" && columns.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-xs font-medium text-muted-foreground">
+            Bins
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="range"
+              min={5}
+              max={100}
+              step={5}
+              value={options.thresholds ?? 20}
+              onChange={(e) =>
+                updateOptions({ thresholds: Number(e.target.value) })
+              }
+              className="flex-1"
+            />
+            <span className="w-8 text-right text-xs text-muted-foreground">
+              {options.thresholds ?? 20}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ TIER 2: Customize (collapsed) ═══ */}
+
+      {isPlot && columns.length > 0 && (
         <CollapsibleSection title="Customize">
-          {/* Tooltip toggle */}
+          {/* Tooltip */}
           <label className="flex items-center gap-2 text-xs">
             <input
               type="checkbox"
@@ -361,8 +359,8 @@ export function VizConfigPanel({
             Show tooltip on hover
           </label>
 
-          {/* Crosshair toggle (line/area only) */}
-          {(config.type === "line" || config.type === "area") && (
+          {/* Crosshair (line/area) */}
+          {(t === "line" || t === "area") && (
             <label className="flex items-center gap-2 text-xs">
               <input
                 type="checkbox"
@@ -375,7 +373,7 @@ export function VizConfigPanel({
             </label>
           )}
 
-          {/* Legend toggle */}
+          {/* Legend */}
           <label className="flex items-center gap-2 text-xs">
             <input
               type="checkbox"
@@ -387,53 +385,29 @@ export function VizConfigPanel({
             Show legend
           </label>
 
-          {/* Color scheme picker */}
-          {mapping.color && (
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
-                Color Scheme
-              </label>
-              <div className="grid grid-cols-2 gap-1.5">
-                {COLOR_SCHEMES.map((scheme) => (
-                  <button
-                    key={scheme.name}
-                    className={cn(
-                      "flex flex-col gap-1 rounded border px-2 py-1.5 text-left transition-colors",
-                      options.colorScheme === scheme.name
-                        ? "border-primary bg-primary/10"
-                        : "border-input hover:bg-accent",
-                    )}
-                    onClick={() => updateOptions({ colorScheme: scheme.name })}
-                  >
-                    <span className="text-[10px] leading-none">{scheme.label}</span>
-                    <div className="flex gap-0.5">
-                      {scheme.colors.map((c, i) => (
-                        <div
-                          key={i}
-                          className="h-2.5 w-2.5 rounded-sm"
-                          style={{ backgroundColor: c }}
-                        />
-                      ))}
-                    </div>
-                  </button>
-                ))}
-              </div>
-              {options.colorScheme && (
-                <button
-                  className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                  onClick={() => updateOptions({ colorScheme: undefined })}
-                >
-                  Reset to default
-                </button>
-              )}
-            </div>
-          )}
+          {/* Color scheme — sequential for heatmap, categorical for others */}
+          {t === "heatmap" ? (
+            <ColorSchemePicker
+              schemes={SEQUENTIAL_SCHEMES}
+              value={options.colorScheme}
+              onChange={(s) => updateOptions({ colorScheme: s })}
+              defaultScheme="ylgnbu"
+            />
+          ) : mapping.color ? (
+            <ColorSchemePicker
+              schemes={CATEGORICAL_SCHEMES}
+              value={options.colorScheme}
+              onChange={(s) => updateOptions({ colorScheme: s })}
+            />
+          ) : null}
         </CollapsibleSection>
       )}
 
-      {/* Axis & Grid section */}
-      {isPlotChart && columns.length > 0 && (
-        <CollapsibleSection title="Axes & Grid">
+      {/* ═══ TIER 3: Advanced (collapsed) — axes, grid, faceting ═══ */}
+
+      {isPlot && columns.length > 0 && (
+        <CollapsibleSection title="Advanced">
+          {/* Axis labels */}
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">
@@ -462,6 +436,8 @@ export function VizConfigPanel({
               />
             </div>
           </div>
+
+          {/* Grid lines */}
           <div className="flex gap-4">
             <label className="flex items-center gap-2 text-xs">
               <input
@@ -480,6 +456,278 @@ export function VizConfigPanel({
               Y grid lines
             </label>
           </div>
+
+          {/* Trend line (scatter/line) */}
+          {(t === "scatter" || t === "line") && (
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={options.showTrendLine ?? false}
+                onChange={(e) =>
+                  updateOptions({ showTrendLine: e.target.checked })
+                }
+              />
+              Trend line (linear regression)
+            </label>
+          )}
+
+          {/* Normalize (line/area) */}
+          {(t === "line" || t === "area") && (
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                Normalize Y
+              </label>
+              <select
+                className="w-full rounded border bg-background px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-ring"
+                value={options.normalize ?? ""}
+                onChange={(e) =>
+                  updateOptions({
+                    normalize: (e.target.value || null) as typeof options.normalize,
+                  })
+                }
+              >
+                <option value="">None</option>
+                <option value="first">Relative to first</option>
+                <option value="max">Relative to max</option>
+                <option value="sum">Percentage of total</option>
+                <option value="mean">Relative to mean</option>
+              </select>
+            </div>
+          )}
+
+          {/* Rolling window (line/area) */}
+          {(t === "line" || t === "area") && (
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                Rolling Average
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range"
+                  min={1}
+                  max={50}
+                  step={1}
+                  value={options.windowSize ?? 1}
+                  onChange={(e) =>
+                    updateOptions({
+                      windowSize: Number(e.target.value) <= 1 ? undefined : Number(e.target.value),
+                    })
+                  }
+                  className="flex-1"
+                />
+                <span className="w-8 text-right text-xs text-muted-foreground">
+                  {options.windowSize ?? "Off"}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Opacity */}
+          {isPlot && (
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                Opacity
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range"
+                  min={0.1}
+                  max={1}
+                  step={0.1}
+                  value={options.opacity ?? (t === "area" ? 0.3 : 1)}
+                  onChange={(e) =>
+                    updateOptions({ opacity: Number(e.target.value) })
+                  }
+                  className="flex-1"
+                />
+                <span className="w-8 text-right text-xs text-muted-foreground">
+                  {(options.opacity ?? (t === "area" ? 0.3 : 1)).toFixed(1)}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Stroke width (line/area) */}
+          {(t === "line" || t === "area") && (
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                Stroke Width
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range"
+                  min={0.5}
+                  max={5}
+                  step={0.5}
+                  value={options.strokeWidth ?? 1.5}
+                  onChange={(e) =>
+                    updateOptions({ strokeWidth: Number(e.target.value) })
+                  }
+                  className="flex-1"
+                />
+                <span className="w-8 text-right text-xs text-muted-foreground">
+                  {options.strokeWidth ?? 1.5}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Scale type */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                X Scale
+              </label>
+              <select
+                className="w-full rounded border bg-background px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-ring"
+                value={options.xScaleType ?? ""}
+                onChange={(e) =>
+                  updateOptions({
+                    xScaleType: (e.target.value || undefined) as typeof options.xScaleType,
+                  })
+                }
+              >
+                <option value="">Auto</option>
+                <option value="linear">Linear</option>
+                <option value="log">Log</option>
+                <option value="sqrt">Square root</option>
+                <option value="time">Time</option>
+                <option value="band">Band</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                Y Scale
+              </label>
+              <select
+                className="w-full rounded border bg-background px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-ring"
+                value={options.yScaleType ?? ""}
+                onChange={(e) =>
+                  updateOptions({
+                    yScaleType: (e.target.value || undefined) as typeof options.yScaleType,
+                  })
+                }
+              >
+                <option value="">Auto</option>
+                <option value="linear">Linear</option>
+                <option value="log">Log</option>
+                <option value="sqrt">Square root</option>
+                <option value="time">Time</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Scale modifiers */}
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={options.yZero ?? false}
+                onChange={(e) => updateOptions({ yZero: e.target.checked })}
+              />
+              Y starts at zero
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={options.xReverse ?? false}
+                onChange={(e) => updateOptions({ xReverse: e.target.checked })}
+              />
+              Reverse X
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={options.yReverse ?? false}
+                onChange={(e) => updateOptions({ yReverse: e.target.checked })}
+              />
+              Reverse Y
+            </label>
+          </div>
+
+          {/* Reference lines */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              Reference Lines
+            </label>
+            {(options.referenceLines ?? []).map((ref, i) => (
+              <div key={i} className="flex items-center gap-1">
+                <select
+                  className="w-12 rounded border bg-background px-1 py-1 text-xs outline-none"
+                  value={ref.axis}
+                  onChange={(e) => {
+                    const lines = [...(options.referenceLines ?? [])];
+                    lines[i] = { ...lines[i], axis: e.target.value as "x" | "y" };
+                    updateOptions({ referenceLines: lines });
+                  }}
+                >
+                  <option value="y">Y</option>
+                  <option value="x">X</option>
+                </select>
+                <input
+                  type="number"
+                  className="w-16 rounded border bg-background px-1.5 py-1 text-xs outline-none"
+                  placeholder="Value"
+                  value={ref.value}
+                  onChange={(e) => {
+                    const lines = [...(options.referenceLines ?? [])];
+                    lines[i] = { ...lines[i], value: Number(e.target.value) };
+                    updateOptions({ referenceLines: lines });
+                  }}
+                />
+                <input
+                  className="flex-1 rounded border bg-background px-1.5 py-1 text-xs outline-none"
+                  placeholder="Label"
+                  value={ref.label ?? ""}
+                  onChange={(e) => {
+                    const lines = [...(options.referenceLines ?? [])];
+                    lines[i] = { ...lines[i], label: e.target.value || undefined };
+                    updateOptions({ referenceLines: lines });
+                  }}
+                />
+                <button
+                  className="text-xs text-muted-foreground hover:text-destructive"
+                  onClick={() => {
+                    const lines = (options.referenceLines ?? []).filter((_, j) => j !== i);
+                    updateOptions({ referenceLines: lines.length ? lines : undefined });
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <button
+              className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() =>
+                updateOptions({
+                  referenceLines: [
+                    ...(options.referenceLines ?? []),
+                    { axis: "y", value: 0 },
+                  ],
+                })
+              }
+            >
+              + Add reference line
+            </button>
+          </div>
+
+          {/* Faceting (for x/y chart types) */}
+          {isXY && (
+            <>
+              <ColumnSelect
+                label="Facet Horizontal"
+                value={mapping.fx}
+                columns={columns}
+                onChange={(fx) => updateMapping({ fx })}
+              />
+              <ColumnSelect
+                label="Facet Vertical"
+                value={mapping.fy}
+                columns={columns}
+                onChange={(fy) => updateMapping({ fy })}
+              />
+            </>
+          )}
         </CollapsibleSection>
       )}
     </div>
