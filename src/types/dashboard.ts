@@ -88,4 +88,14 @@ export interface VisualizationOptions {
   pageSize?: number;
   colorScheme?: string;
   showLegend?: boolean;
+  /** Tooltip on hover (default: true) */
+  showTooltip?: boolean;
+  /** Crosshair follows pointer — best for line/area (default: false) */
+  crosshair?: boolean;
+  /** Axis labels */
+  xLabel?: string;
+  yLabel?: string;
+  /** Grid lines */
+  xGrid?: boolean;
+  yGrid?: boolean;
 }

@@ -21,7 +21,6 @@ export function PlotChart({ type, result, mapping, options }: PlotChartProps) {
     if (!x || !y) return;
 
     const yColumns = Array.isArray(y) ? y : [y];
-    const marks: Plot.Markish[] = [];
 
     // If multiple y columns, reshape data into long format
     let data: Record<string, unknown>[];
@@ -43,103 +42,150 @@ export function PlotChart({ type, result, mapping, options }: PlotChartProps) {
       colorField = color;
     }
 
-    const channelOpts: Record<string, unknown> = {
-      x,
-      y: yField,
-    };
-    if (colorField) channelOpts.fill = colorField;
-    if (colorField) channelOpts.stroke = colorField;
+    const render = () => {
+      const marks: Plot.Markish[] = [];
 
-    switch (type) {
-      case "bar":
-        if (options.horizontal) {
+      // --- Build marks per chart type ---
+      switch (type) {
+        case "bar":
+          if (options.horizontal) {
+            marks.push(
+              Plot.barX(data, {
+                y: x,
+                x: yField,
+                fill: colorField ?? "steelblue",
+              }),
+            );
+          } else {
+            marks.push(
+              Plot.barY(data, {
+                x,
+                y: yField,
+                fill: colorField ?? "steelblue",
+              }),
+            );
+          }
+          break;
+
+        case "line":
           marks.push(
-            Plot.barX(data, {
-              y: x,
-              x: yField,
-              fill: colorField ?? options.colorScheme ?? "steelblue",
-            }),
-          );
-        } else {
-          marks.push(
-            Plot.barY(data, {
+            Plot.lineY(data, {
               x,
               y: yField,
-              fill: colorField ?? options.colorScheme ?? "steelblue",
+              stroke: colorField ?? "steelblue",
+              curve: options.curve ?? "linear",
             }),
           );
+          marks.push(Plot.ruleY([0]));
+          break;
+
+        case "area":
+          marks.push(
+            Plot.areaY(data, {
+              x,
+              y: yField,
+              fill: colorField ?? "steelblue",
+              curve: options.curve ?? "linear",
+              fillOpacity: 0.3,
+            }),
+          );
+          marks.push(
+            Plot.lineY(data, {
+              x,
+              y: yField,
+              stroke: colorField ?? "steelblue",
+              curve: options.curve ?? "linear",
+            }),
+          );
+          break;
+
+        case "scatter":
+          marks.push(
+            Plot.dot(data, {
+              x,
+              y: yField,
+              fill: colorField ?? "steelblue",
+              r: mapping.size ?? 3,
+            }),
+          );
+          break;
+      }
+
+      // --- Tooltips (default on) ---
+      if (options.showTooltip !== false) {
+        const tipChannels: Record<string, string> = { x, y: yField };
+        if (colorField) tipChannels.fill = colorField;
+
+        if (type === "bar") {
+          if (options.horizontal) {
+            marks.push(
+              Plot.tip(data, Plot.pointerY({ y: x, x: yField, fill: colorField ?? undefined })),
+            );
+          } else {
+            marks.push(
+              Plot.tip(data, Plot.pointerX({ x, y: yField, fill: colorField ?? undefined })),
+            );
+          }
+        } else {
+          marks.push(
+            Plot.tip(data, Plot.pointer({ x, y: yField, stroke: colorField ?? undefined })),
+          );
         }
-        if (options.stacked && colorField) {
-          // Observable Plot handles stacking automatically when fill is set
-        }
-        break;
+      }
 
-      case "line":
-        marks.push(
-          Plot.lineY(data, {
-            x,
-            y: yField,
-            stroke: colorField ?? options.colorScheme ?? "steelblue",
-            curve: options.curve ?? "linear",
-          }),
-        );
-        marks.push(
-          Plot.ruleY([0]),
-        );
-        break;
+      // --- Crosshair for line/area (opt-in) ---
+      if (options.crosshair && (type === "line" || type === "area")) {
+        marks.push(Plot.crosshair(data, { x, y: yField }));
+      }
 
-      case "area":
-        marks.push(
-          Plot.areaY(data, {
-            x,
-            y: yField,
-            fill: colorField ?? options.colorScheme ?? "steelblue",
-            curve: options.curve ?? "linear",
-            fillOpacity: 0.3,
-          }),
-        );
-        marks.push(
-          Plot.lineY(data, {
-            x,
-            y: yField,
-            stroke: colorField ?? options.colorScheme ?? "steelblue",
-            curve: options.curve ?? "linear",
-          }),
-        );
-        break;
+      // --- Plot options ---
+      const plotOptions: Plot.PlotOptions = {
+        marks,
+        width: el.clientWidth || 400,
+        height: el.clientHeight || 300,
+        marginLeft: 60,
+        marginBottom: 40,
+        marginTop: 20,
+        marginRight: 20,
+        style: {
+          background: "transparent",
+          overflow: "visible",
+        },
+        x: {
+          label: options.xLabel ?? null,
+          grid: options.xGrid ?? false,
+        },
+        y: {
+          label: options.yLabel ?? null,
+          grid: options.yGrid ?? false,
+        },
+      };
 
-      case "scatter":
-        marks.push(
-          Plot.dot(data, {
-            x,
-            y: yField,
-            fill: colorField ?? options.colorScheme ?? "steelblue",
-            r: mapping.size ?? 3,
-          }),
-        );
-        break;
-    }
+      // Color scheme
+      if (options.colorScheme && colorField) {
+        plotOptions.color = {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          scheme: options.colorScheme as any,
+          legend: options.showLegend !== false,
+        };
+      } else if (options.showLegend === false) {
+        plotOptions.color = { legend: false };
+      }
 
-    const plotOptions: Plot.PlotOptions = {
-      marks,
-      width: el.clientWidth,
-      height: el.clientHeight,
-      marginLeft: 60,
-      marginBottom: 40,
-      style: {
-        background: "transparent",
-        overflow: "visible",
-      },
+      const svg = Plot.plot(plotOptions);
+      el.replaceChildren(svg);
     };
 
-    if (options.showLegend === false) {
-      plotOptions.color = { ...plotOptions.color, legend: false };
-    }
+    render();
 
-    const svg = Plot.plot(plotOptions);
-    el.replaceChildren(svg);
+    // Responsive resize
+    const ro = new ResizeObserver(() => {
+      render();
+    });
+    ro.observe(el);
 
     return () => {
+      ro.disconnect();
       el.replaceChildren();
     };
   }, [type, result, mapping, options]);
