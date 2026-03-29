@@ -145,19 +145,19 @@ function SettingsPage() {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Run query</span>
-                <kbd className="rounded border bg-muted px-2 py-0.5 text-xs font-mono">
+                <kbd className="glossy rounded-md border border-border/50 bg-muted/60 px-2 py-0.5 text-xs font-mono shadow-sm">
                   Cmd+Enter
                 </kbd>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Close panel editor</span>
-                <kbd className="rounded border bg-muted px-2 py-0.5 text-xs font-mono">
+                <kbd className="glossy rounded-md border border-border/50 bg-muted/60 px-2 py-0.5 text-xs font-mono shadow-sm">
                   Escape
                 </kbd>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Toggle sidebar</span>
-                <kbd className="rounded border bg-muted px-2 py-0.5 text-xs font-mono">
+                <kbd className="glossy rounded-md border border-border/50 bg-muted/60 px-2 py-0.5 text-xs font-mono shadow-sm">
                   Cmd+B
                 </kbd>
               </div>

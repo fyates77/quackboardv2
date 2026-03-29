@@ -90,10 +90,10 @@ export function FileDropZone() {
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={cn(
-          "flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-10 transition-colors",
+          "glass flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-10 transition-all",
           isDragOver
-            ? "border-primary bg-primary/5"
-            : "border-muted-foreground/25 hover:border-muted-foreground/50",
+            ? "border-primary bg-primary/10 shadow-lg"
+            : "border-muted-foreground/25 hover:border-primary/40 hover:shadow-md",
           uploading && "pointer-events-none opacity-60",
         )}
       >
@@ -132,7 +132,7 @@ export function FileDropZone() {
       </div>
 
       {error && (
-        <div className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+        <div className="glass flex items-start gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
           <p>{error}</p>
         </div>

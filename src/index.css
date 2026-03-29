@@ -4,57 +4,83 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --color-background: hsl(0 0% 100%);
-  --color-foreground: hsl(222.2 84% 4.9%);
-  --color-card: hsl(0 0% 100%);
-  --color-card-foreground: hsl(222.2 84% 4.9%);
-  --color-popover: hsl(0 0% 100%);
-  --color-popover-foreground: hsl(222.2 84% 4.9%);
-  --color-primary: hsl(222.2 47.4% 11.2%);
-  --color-primary-foreground: hsl(210 40% 98%);
-  --color-secondary: hsl(210 40% 96.1%);
-  --color-secondary-foreground: hsl(222.2 47.4% 11.2%);
-  --color-muted: hsl(210 40% 96.1%);
-  --color-muted-foreground: hsl(215.4 16.3% 46.9%);
-  --color-accent: hsl(210 40% 96.1%);
-  --color-accent-foreground: hsl(222.2 47.4% 11.2%);
-  --color-destructive: hsl(0 84.2% 60.2%);
-  --color-destructive-foreground: hsl(210 40% 98%);
-  --color-border: hsl(214.3 31.8% 91.4%);
-  --color-input: hsl(214.3 31.8% 91.4%);
-  --color-ring: hsl(222.2 84% 4.9%);
-  --color-sidebar: hsl(0 0% 98%);
-  --color-sidebar-foreground: hsl(222.2 84% 4.9%);
-  --color-sidebar-border: hsl(214.3 31.8% 91.4%);
-  --radius-sm: 0.25rem;
-  --radius-md: 0.375rem;
-  --radius-lg: 0.5rem;
-  --radius-xl: 0.75rem;
+  /* ── Frutiger Aero / Duck palette ── */
+  /* Neutral base: warm gray with a hint of blue — airy, not cold */
+  --color-background: hsl(210 20% 96%);
+  --color-foreground: hsl(220 25% 14%);
+
+  /* Cards: translucent white for glass effect */
+  --color-card: hsla(0 0% 100% / 0.72);
+  --color-card-foreground: hsl(220 25% 14%);
+
+  --color-popover: hsla(0 0% 100% / 0.88);
+  --color-popover-foreground: hsl(220 25% 14%);
+
+  /* Primary: warm amber/orange — the "duck" accent */
+  --color-primary: hsl(36 95% 50%);
+  --color-primary-foreground: hsl(0 0% 100%);
+
+  /* Secondary: soft warm gray */
+  --color-secondary: hsla(210 15% 92% / 0.6);
+  --color-secondary-foreground: hsl(220 25% 20%);
+
+  --color-muted: hsl(210 15% 92%);
+  --color-muted-foreground: hsl(215 12% 50%);
+
+  /* Accent: warm yellow highlight — used for hover/focus */
+  --color-accent: hsla(42 90% 55% / 0.15);
+  --color-accent-foreground: hsl(220 25% 14%);
+
+  --color-destructive: hsl(0 72% 55%);
+  --color-destructive-foreground: hsl(0 0% 100%);
+
+  --color-border: hsla(210 20% 80% / 0.5);
+  --color-input: hsla(210 20% 80% / 0.5);
+  --color-ring: hsl(36 95% 50%);
+
+  /* Sidebar: frosted glass */
+  --color-sidebar: hsla(0 0% 100% / 0.55);
+  --color-sidebar-foreground: hsl(220 25% 14%);
+  --color-sidebar-border: hsla(210 20% 80% / 0.4);
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
 }
 
 .dark {
-  --color-background: hsl(222.2 84% 4.9%);
-  --color-foreground: hsl(210 40% 98%);
-  --color-card: hsl(222.2 84% 4.9%);
-  --color-card-foreground: hsl(210 40% 98%);
-  --color-popover: hsl(222.2 84% 4.9%);
-  --color-popover-foreground: hsl(210 40% 98%);
-  --color-primary: hsl(210 40% 98%);
-  --color-primary-foreground: hsl(222.2 47.4% 11.2%);
-  --color-secondary: hsl(217.2 32.6% 17.5%);
-  --color-secondary-foreground: hsl(210 40% 98%);
-  --color-muted: hsl(217.2 32.6% 17.5%);
-  --color-muted-foreground: hsl(215 20.2% 65.1%);
-  --color-accent: hsl(217.2 32.6% 17.5%);
-  --color-accent-foreground: hsl(210 40% 98%);
-  --color-destructive: hsl(0 62.8% 30.6%);
-  --color-destructive-foreground: hsl(210 40% 98%);
-  --color-border: hsl(217.2 32.6% 17.5%);
-  --color-input: hsl(217.2 32.6% 17.5%);
-  --color-ring: hsl(212.7 26.8% 83.9%);
-  --color-sidebar: hsl(222.2 84% 3.9%);
-  --color-sidebar-foreground: hsl(210 40% 98%);
-  --color-sidebar-border: hsl(217.2 32.6% 17.5%);
+  --color-background: hsl(220 20% 10%);
+  --color-foreground: hsl(210 20% 92%);
+
+  --color-card: hsla(220 20% 16% / 0.72);
+  --color-card-foreground: hsl(210 20% 92%);
+
+  --color-popover: hsla(220 20% 16% / 0.88);
+  --color-popover-foreground: hsl(210 20% 92%);
+
+  --color-primary: hsl(36 90% 52%);
+  --color-primary-foreground: hsl(220 25% 10%);
+
+  --color-secondary: hsla(220 15% 22% / 0.6);
+  --color-secondary-foreground: hsl(210 20% 88%);
+
+  --color-muted: hsl(220 15% 20%);
+  --color-muted-foreground: hsl(215 12% 58%);
+
+  --color-accent: hsla(42 80% 50% / 0.15);
+  --color-accent-foreground: hsl(210 20% 92%);
+
+  --color-destructive: hsl(0 62% 45%);
+  --color-destructive-foreground: hsl(210 20% 95%);
+
+  --color-border: hsla(220 15% 30% / 0.6);
+  --color-input: hsla(220 15% 30% / 0.6);
+  --color-ring: hsl(36 90% 52%);
+
+  --color-sidebar: hsla(220 20% 12% / 0.6);
+  --color-sidebar-foreground: hsl(210 20% 92%);
+  --color-sidebar-border: hsla(220 15% 25% / 0.5);
 }
 
 @layer base {
@@ -69,6 +95,78 @@
       "Inter",
       system-ui,
       -apple-system,
+      "Segoe UI",
       sans-serif;
   }
+}
+
+/* ── Frutiger Aero utility classes ── */
+
+/* Frosted glass panel */
+.glass {
+  background: var(--color-card);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid hsla(0, 0%, 100%, 0.25);
+  box-shadow:
+    0 1px 0 0 hsla(0, 0%, 100%, 0.35) inset,
+    0 4px 16px -2px hsla(220, 30%, 20%, 0.12),
+    0 1px 3px 0 hsla(220, 30%, 20%, 0.06);
+}
+
+.dark .glass {
+  border-color: hsla(0, 0%, 100%, 0.08);
+  box-shadow:
+    0 1px 0 0 hsla(0, 0%, 100%, 0.06) inset,
+    0 4px 16px -2px hsla(0, 0%, 0%, 0.4),
+    0 1px 3px 0 hsla(0, 0%, 0%, 0.2);
+}
+
+/* Subtle gloss on interactive elements (buttons) */
+.glossy {
+  background-image: linear-gradient(
+    to bottom,
+    hsla(0, 0%, 100%, 0.2) 0%,
+    hsla(0, 0%, 100%, 0) 50%,
+    hsla(0, 0%, 0%, 0.04) 100%
+  );
+}
+
+.dark .glossy {
+  background-image: linear-gradient(
+    to bottom,
+    hsla(0, 0%, 100%, 0.1) 0%,
+    hsla(0, 0%, 100%, 0) 50%,
+    hsla(0, 0%, 0%, 0.1) 100%
+  );
+}
+
+/* Aero depth shadow (multi-layered soft) */
+.aero-shadow {
+  box-shadow:
+    0 2px 8px -1px hsla(220, 30%, 20%, 0.1),
+    0 6px 24px -4px hsla(220, 30%, 20%, 0.08),
+    0 0 0 1px hsla(0, 0%, 100%, 0.2) inset;
+}
+
+.dark .aero-shadow {
+  box-shadow:
+    0 2px 8px -1px hsla(0, 0%, 0%, 0.3),
+    0 6px 24px -4px hsla(0, 0%, 0%, 0.2),
+    0 0 0 1px hsla(0, 0%, 100%, 0.04) inset;
+}
+
+/* Background gradient — gives glass something to blur against */
+.aero-bg {
+  background:
+    radial-gradient(ellipse at 30% 20%, hsla(200, 60%, 85%, 0.4) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 80%, hsla(36, 70%, 85%, 0.25) 0%, transparent 50%),
+    linear-gradient(160deg, hsl(210, 20%, 96%) 0%, hsl(200, 15%, 92%) 100%);
+}
+
+.dark .aero-bg {
+  background:
+    radial-gradient(ellipse at 30% 20%, hsla(210, 40%, 20%, 0.5) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 80%, hsla(36, 50%, 15%, 0.3) 0%, transparent 50%),
+    linear-gradient(160deg, hsl(220, 20%, 10%) 0%, hsl(220, 18%, 8%) 100%);
 }

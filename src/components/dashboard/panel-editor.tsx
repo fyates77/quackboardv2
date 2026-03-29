@@ -98,9 +98,9 @@ export function PanelEditor({
   );
 
   return (
-    <div className="flex h-full flex-col border-l bg-card">
+    <div className="glass flex h-full flex-col border-l border-border/30">
       {/* Header */}
-      <div className="flex items-center justify-between border-b px-3 py-2">
+      <div className="flex items-center justify-between border-b border-border/30 px-3 py-2">
         <h3 className="text-sm font-semibold truncate">{panel.title}</h3>
         <Button
           variant="ghost"
@@ -114,7 +114,7 @@ export function PanelEditor({
 
       <div className="flex-1 overflow-auto">
         {/* SQL Editor section */}
-        <div className="border-b p-3">
+        <div className="border-b border-border/30 p-3">
           <div className="mb-2 flex items-center justify-between">
             <label className="text-xs font-medium text-muted-foreground">
               SQL Query
@@ -133,7 +133,7 @@ export function PanelEditor({
               Run
             </Button>
           </div>
-          <div className="h-40">
+          <div className="h-40 overflow-hidden rounded-lg border border-border/40">
             <SqlEditor
               value={sqlDraft}
               onChange={setSqlDraft}
@@ -147,14 +147,14 @@ export function PanelEditor({
 
         {/* Error */}
         {error && (
-          <div className="flex items-start gap-2 border-b p-3 text-xs text-destructive">
+          <div className="flex items-start gap-2 border-b border-border/30 p-3 text-xs text-destructive">
             <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <pre className="whitespace-pre-wrap">{error}</pre>
           </div>
         )}
 
         {/* Viz config section */}
-        <div className="border-b p-3">
+        <div className="border-b border-border/30 p-3">
           <VizConfigPanel
             config={panel.visualization}
             result={data}
@@ -168,7 +168,7 @@ export function PanelEditor({
         {data && (
           <div className="p-3">
             <button
-              className="flex w-full items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+              className="flex w-full items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
               onClick={() => setResultsOpen(!resultsOpen)}
             >
               {resultsOpen ? (
@@ -179,7 +179,7 @@ export function PanelEditor({
               Results ({data.rowCount} rows, {data.elapsed.toFixed(1)}ms)
             </button>
             {resultsOpen && (
-              <div className="mt-2 max-h-60 overflow-auto">
+              <div className="mt-2 max-h-60 overflow-auto rounded-lg border border-border/40">
                 <ResultsTable result={data} />
               </div>
             )}

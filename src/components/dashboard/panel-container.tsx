@@ -42,13 +42,14 @@ export function PanelContainer({
   return (
     <div
       className={cn(
-        "flex h-full flex-col rounded-lg border bg-card shadow-sm transition-shadow",
-        isActive && "ring-2 ring-primary",
+        "glass flex h-full flex-col rounded-xl transition-all",
+        isActive && "ring-2 ring-primary/60 shadow-lg",
+        !isActive && "hover:shadow-md",
       )}
       onClick={() => setActivePanelId(panel.id)}
     >
       {/* Header */}
-      <div className="flex items-center gap-1 border-b px-2 py-1.5">
+      <div className="flex items-center gap-1 border-b border-border/30 px-2 py-1.5">
         <div className="panel-drag-handle cursor-grab active:cursor-grabbing p-0.5">
           <GripVertical className="h-4 w-4 text-muted-foreground" />
         </div>
@@ -63,7 +64,7 @@ export function PanelContainer({
           >
             <input
               autoFocus
-              className="flex-1 rounded border bg-background px-1.5 py-0.5 text-sm font-medium outline-none focus:ring-1 focus:ring-ring"
+              className="flex-1 rounded-md border border-border/50 bg-background/60 px-1.5 py-0.5 text-sm font-medium outline-none backdrop-blur-sm focus:ring-1 focus:ring-ring"
               value={titleDraft}
               onChange={(e) => setTitleDraft(e.target.value)}
               onBlur={commitTitle}
@@ -133,8 +134,8 @@ export function PanelContainer({
       {/* Content area */}
       <div className="relative flex-1 overflow-hidden p-2">
         {loading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-card/80">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-card/60 backdrop-blur-sm">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
           </div>
         )}
         {queryResult ? (

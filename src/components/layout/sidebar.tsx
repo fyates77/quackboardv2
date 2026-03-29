@@ -13,8 +13,8 @@ export function Sidebar() {
   const matchRoute = useMatchRoute();
 
   return (
-    <aside className="flex h-full w-56 flex-col border-r bg-sidebar text-sidebar-foreground">
-      <div className="flex h-14 items-center border-b px-4">
+    <aside className="glass flex h-full w-56 flex-col border-r border-border/40">
+      <div className="flex h-14 items-center border-b border-border/30 px-4">
         <Link to="/dashboards" className="flex items-center gap-2 font-bold">
           <span className="text-xl">Quackboard</span>
         </Link>
@@ -27,9 +27,9 @@ export function Sidebar() {
               key={to}
               to={to}
               className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all",
                 isActive
-                  ? "bg-accent text-accent-foreground"
+                  ? "bg-primary/15 text-primary shadow-sm"
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
               )}
             >
@@ -39,7 +39,7 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="border-t">
+      <div className="border-t border-border/30">
         <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Tables
         </div>

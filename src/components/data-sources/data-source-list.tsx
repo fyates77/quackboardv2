@@ -35,10 +35,10 @@ export function DataSourceList() {
   return (
     <div className="space-y-3">
       <h2 className="text-lg font-semibold">Loaded Tables</h2>
-      <div className="rounded-lg border">
+      <div className="glass rounded-xl overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b bg-muted/50">
+            <tr className="border-b border-border/30 bg-muted/30">
               <th className="p-3 text-left font-medium">Name</th>
               <th className="p-3 text-left font-medium">Table</th>
               <th className="p-3 text-left font-medium">Format</th>

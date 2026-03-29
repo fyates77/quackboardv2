@@ -25,10 +25,10 @@ export function AppShell({ children }: AppShellProps) {
   }, [sidebarOpen, setSidebarOpen]);
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="aero-bg flex h-screen overflow-hidden">
       {sidebarOpen && <Sidebar />}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 items-center justify-between border-b px-4">
+        <header className="glass flex h-14 items-center justify-between border-b border-border/40 px-4">
           <Button
             variant="ghost"
             size="icon"

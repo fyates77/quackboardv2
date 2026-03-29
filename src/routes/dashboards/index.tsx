@@ -60,7 +60,7 @@ function DashboardListPage() {
           {dashList.map((dash) => (
             <Card
               key={dash.id}
-              className="group relative cursor-pointer transition-shadow hover:shadow-md"
+              className="group relative cursor-pointer transition-all hover:shadow-lg hover:-translate-y-0.5"
             >
               <Link
                 to="/dashboards/$dashboardId"

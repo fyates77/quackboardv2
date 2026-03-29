@@ -99,7 +99,7 @@ function DashboardEditorPage() {
         {/* Main canvas area */}
         <div className="flex-1 overflow-auto">
           {dashboard.panels.length === 0 ? (
-            <div className="flex h-full items-center justify-center rounded-lg border-2 border-dashed">
+            <div className="glass flex h-full items-center justify-center rounded-xl border-2 border-dashed border-border/40">
               <div className="text-center">
                 <p className="text-lg font-medium">Empty dashboard</p>
                 <p className="mt-1 text-sm text-muted-foreground">
