@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useDashboardStore } from "@/stores/dashboard-store";
@@ -71,19 +71,26 @@ function DashboardEditorPage() {
     handleLoadingChange,
   );
 
-  // Re-run all panels when filter values change
-  const filterKey = useMemo(
-    () => JSON.stringify(filterValues),
-    [filterValues],
-  );
-  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  // Re-run panels when filter values change.
+  // Use a ref for the previous key so we don't re-trigger the effect via state.
+  const prevFilterKeyRef = useRef(JSON.stringify(filterValues));
+  // Keep latest refs so the effect closure always sees current values
+  const panelsRef = useRef(dashboard?.panels ?? []);
+  panelsRef.current = dashboard?.panels ?? [];
+  const filterValuesRef = useRef(filterValues);
+  filterValuesRef.current = filterValues;
+
+  const filterKey = JSON.stringify(filterValues);
 
   useEffect(() => {
-    if (filterKey === prevFilterKey) return;
-    setPrevFilterKey(filterKey);
+    if (filterKey === prevFilterKeyRef.current) return;
+    prevFilterKeyRef.current = filterKey;
 
-    const panels = dashboard?.panels ?? [];
-    const panelsWithSql = panels.filter((p) => p.query.sql.trim());
+    const panels = panelsRef.current;
+    const currentFilters = filterValuesRef.current;
+    const panelsWithSql = panels.filter(
+      (p) => p.query.sql.trim() && p.applyDashboardFilters !== false,
+    );
     if (panelsWithSql.length === 0) return;
 
     let cancelled = false;
@@ -91,9 +98,8 @@ function DashboardEditorPage() {
     (async () => {
       for (const panel of panelsWithSql) {
         if (cancelled) break;
-        const sql = interpolateFilters(panel.query.sql, filterValues);
+        const sql = interpolateFilters(panel.query.sql, currentFilters);
 
-        // Check cache first
         const cached = queryCache.get(sql);
         if (cached) {
           handleQueryResult(panel.id, cached);
@@ -118,15 +124,7 @@ function DashboardEditorPage() {
     return () => {
       cancelled = true;
     };
-  }, [
-    filterKey,
-    prevFilterKey,
-    dashboard?.panels,
-    engine,
-    filterValues,
-    handleQueryResult,
-    handleLoadingChange,
-  ]);
+  }, [filterKey, engine, handleQueryResult, handleLoadingChange]);
 
   const handleDuplicatePanel = useCallback(
     (sourcePanelId: string, newPanelId: string) => {

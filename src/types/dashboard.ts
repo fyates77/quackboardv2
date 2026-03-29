@@ -34,6 +34,8 @@ export interface Panel {
   title: string;
   query: PanelQuery;
   visualization: VisualizationConfig;
+  /** Whether {{filter}} placeholders are interpolated. Defaults to true. */
+  applyDashboardFilters?: boolean;
 }
 
 export interface PanelQuery {

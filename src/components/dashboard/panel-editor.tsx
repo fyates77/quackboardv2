@@ -5,6 +5,7 @@ import { useUIStore } from "@/stores/ui-store";
 import { useQuery } from "@/engine/use-query";
 import { inferVisualization } from "@/lib/viz-defaults";
 import { interpolateFilters } from "@/lib/sql-template";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger, DialogContent } from "@/components/ui/dialog";
 import { SqlEditor } from "@/components/query/sql-editor";
@@ -32,6 +33,9 @@ export function PanelEditor({
   onQueryResult,
 }: PanelEditorProps) {
   const updatePanelQuery = useDashboardStore((s) => s.updatePanelQuery);
+  const updatePanelApplyFilters = useDashboardStore(
+    (s) => s.updatePanelApplyFilters,
+  );
   const updatePanelVisualization = useDashboardStore(
     (s) => s.updatePanelVisualization,
   );
@@ -63,8 +67,11 @@ export function PanelEditor({
     // Persist SQL to store (with template placeholders intact)
     updatePanelQuery(dashboardId, panel.id, trimmed);
 
-    // Interpolate filter values before execution
-    const resolvedSql = interpolateFilters(trimmed, filterValues);
+    // Interpolate filter values before execution (if enabled for this panel)
+    const resolvedSql =
+      panel.applyDashboardFilters !== false
+        ? interpolateFilters(trimmed, filterValues)
+        : trimmed;
     const result = await execute(resolvedSql);
 
     // Auto-detect viz on first run if mapping is empty
@@ -204,9 +211,41 @@ export function PanelEditor({
               onRun={handleRun}
             />
           </div>
-          <p className="mt-1 text-[10px] text-muted-foreground">
-            Cmd+Enter to run
-          </p>
+          <div className="mt-2 flex items-center justify-between">
+            <p className="text-[10px] text-muted-foreground">
+              Cmd+Enter to run
+            </p>
+            <button
+              className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() =>
+                updatePanelApplyFilters(
+                  dashboardId,
+                  panel.id,
+                  panel.applyDashboardFilters === false,
+                )
+              }
+              title="Whether dashboard-level filters apply to this panel's query"
+            >
+              <span
+                className={cn(
+                  "inline-block h-3 w-5 rounded-full transition-colors",
+                  panel.applyDashboardFilters !== false
+                    ? "bg-primary"
+                    : "bg-muted-foreground/30",
+                )}
+              >
+                <span
+                  className={cn(
+                    "block h-2.5 w-2.5 translate-y-[1px] rounded-full bg-white shadow-sm transition-transform",
+                    panel.applyDashboardFilters !== false
+                      ? "translate-x-[9px]"
+                      : "translate-x-[1px]",
+                  )}
+                />
+              </span>
+              Dashboard filters
+            </button>
+          </div>
         </div>
 
         {/* Error */}

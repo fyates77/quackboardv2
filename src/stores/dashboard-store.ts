@@ -34,6 +34,11 @@ interface DashboardState {
     panelId: string,
     sql: string,
   ) => void;
+  updatePanelApplyFilters: (
+    dashboardId: string,
+    panelId: string,
+    apply: boolean,
+  ) => void;
   updatePanelVisualization: (
     dashboardId: string,
     panelId: string,
@@ -285,6 +290,26 @@ export const useDashboardStore = create<DashboardState>()(
                 panels: dash.panels.map((p) =>
                   p.id === panelId
                     ? { ...p, query: { ...p.query, sql } }
+                    : p,
+                ),
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          };
+        }),
+
+      updatePanelApplyFilters: (dashboardId, panelId, apply) =>
+        set((state) => {
+          const dash = state.dashboards[dashboardId];
+          if (!dash) return state;
+          return {
+            dashboards: {
+              ...state.dashboards,
+              [dashboardId]: {
+                ...dash,
+                panels: dash.panels.map((p) =>
+                  p.id === panelId
+                    ? { ...p, applyDashboardFilters: apply }
                     : p,
                 ),
                 updatedAt: new Date().toISOString(),
