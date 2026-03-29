@@ -4,7 +4,7 @@ import { useDashboardStore } from "@/stores/dashboard-store";
 import { useUIStore } from "@/stores/ui-store";
 import { useQuery } from "@/engine/use-query";
 import { inferVisualization } from "@/lib/viz-defaults";
-import { interpolateFilters } from "@/lib/sql-template";
+import { applyFilters } from "@/lib/sql-template";
 import { cn } from "@/lib/utils";
 import { exportResultsAsCsv, exportResultsAsJson } from "@/lib/export-results";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { ResultsTable } from "@/components/query/results-table";
 import { VizConfigPanel } from "@/components/visualizations/viz-config-panel";
 import type { QueryResult } from "@/engine/types";
 import type {
+  DashboardFilter,
   Panel,
   VisualizationType,
   ColumnMapping,
@@ -23,6 +24,7 @@ import type {
 interface PanelEditorProps {
   dashboardId: string;
   panel: Panel;
+  filters?: DashboardFilter[];
   filterValues?: Record<string, string>;
   onQueryResult: (panelId: string, result: QueryResult | null) => void;
 }
@@ -30,6 +32,7 @@ interface PanelEditorProps {
 export function PanelEditor({
   dashboardId,
   panel,
+  filters = [],
   filterValues = {},
   onQueryResult,
 }: PanelEditorProps) {
@@ -68,10 +71,10 @@ export function PanelEditor({
     // Persist SQL to store (with template placeholders intact)
     updatePanelQuery(dashboardId, panel.id, trimmed);
 
-    // Interpolate filter values before execution (if enabled for this panel)
+    // Apply dashboard filters (if enabled for this panel)
     const resolvedSql =
       panel.applyDashboardFilters !== false
-        ? interpolateFilters(trimmed, filterValues)
+        ? applyFilters(trimmed, filters, filterValues)
         : trimmed;
     const result = await execute(resolvedSql);
 

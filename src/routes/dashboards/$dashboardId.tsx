@@ -5,7 +5,7 @@ import { useDashboardStore } from "@/stores/dashboard-store";
 import { useUIStore } from "@/stores/ui-store";
 import { useEngine } from "@/engine/use-engine";
 import { useAutoRunPanels } from "@/hooks/use-auto-run-panels";
-import { interpolateFilters } from "@/lib/sql-template";
+import { applyFilters } from "@/lib/sql-template";
 import { queryCache } from "@/lib/query-cache";
 import { DashboardToolbar } from "@/components/dashboard/dashboard-toolbar";
 import { DashboardCanvas } from "@/components/dashboard/dashboard-canvas";
@@ -79,6 +79,8 @@ function DashboardEditorPage() {
   panelsRef.current = dashboard?.panels ?? [];
   const filterValuesRef = useRef(filterValues);
   filterValuesRef.current = filterValues;
+  const filtersRef = useRef(dashboard?.filters ?? []);
+  filtersRef.current = dashboard?.filters ?? [];
 
   const filterKey = JSON.stringify(filterValues);
 
@@ -87,7 +89,8 @@ function DashboardEditorPage() {
     prevFilterKeyRef.current = filterKey;
 
     const panels = panelsRef.current;
-    const currentFilters = filterValuesRef.current;
+    const currentFilterValues = filterValuesRef.current;
+    const currentFilters = filtersRef.current;
     const panelsWithSql = panels.filter(
       (p) => p.query.sql.trim() && p.applyDashboardFilters !== false,
     );
@@ -98,7 +101,11 @@ function DashboardEditorPage() {
     (async () => {
       for (const panel of panelsWithSql) {
         if (cancelled) break;
-        const sql = interpolateFilters(panel.query.sql, currentFilters);
+        const sql = applyFilters(
+          panel.query.sql,
+          currentFilters,
+          currentFilterValues,
+        );
 
         const cached = queryCache.get(sql);
         if (cached) {
@@ -116,7 +123,6 @@ function DashboardEditorPage() {
         } catch {
           // Skip failures silently on filter change
         } finally {
-          // Always clear loading — never leave panels stuck
           handleLoadingChange(panel.id, false);
         }
       }
@@ -214,6 +220,7 @@ function DashboardEditorPage() {
               key={activePanel.id}
               dashboardId={dashboardId}
               panel={activePanel}
+              filters={dashboard.filters ?? []}
               filterValues={filterValues}
               onQueryResult={handleQueryResult}
             />
