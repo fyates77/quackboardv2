@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { Play, Loader2, X, AlertCircle, ChevronDown, ChevronRight } from "lucide-react";
+import { Play, Loader2, X, AlertCircle, ChevronDown, ChevronRight, Maximize2 } from "lucide-react";
 import { useDashboardStore } from "@/stores/dashboard-store";
 import { useUIStore } from "@/stores/ui-store";
 import { useQuery } from "@/engine/use-query";
 import { inferVisualization } from "@/lib/viz-defaults";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogTrigger, DialogContent } from "@/components/ui/dialog";
 import { SqlEditor } from "@/components/query/sql-editor";
 import { ResultsTable } from "@/components/query/results-table";
 import { VizConfigPanel } from "@/components/visualizations/viz-config-panel";
@@ -35,6 +36,7 @@ export function PanelEditor({
 
   const [sqlDraft, setSqlDraft] = useState(panel.query.sql);
   const [resultsOpen, setResultsOpen] = useState(false);
+  const [expandedOpen, setExpandedOpen] = useState(false);
   const { data, loading, error, execute } = useQuery();
 
   // Sync draft when switching panels
@@ -119,19 +121,71 @@ export function PanelEditor({
             <label className="text-xs font-medium text-muted-foreground">
               SQL Query
             </label>
-            <Button
-              size="sm"
-              className="h-7 gap-1.5 text-xs"
-              onClick={handleRun}
-              disabled={loading}
-            >
-              {loading ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Play className="h-3 w-3" />
-              )}
-              Run
-            </Button>
+            <div className="flex items-center gap-1">
+              <Dialog open={expandedOpen} onOpenChange={setExpandedOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    title="Expand editor"
+                  >
+                    <Maximize2 className="h-3.5 w-3.5" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="flex h-[80vh] w-[80vw] max-w-5xl flex-col gap-0 p-0">
+                  <div className="flex items-center justify-between border-b border-border/30 px-4 py-3 pr-12">
+                    <h3 className="text-sm font-semibold">{panel.title} — SQL Editor</h3>
+                  </div>
+                  <div className="flex-1 overflow-hidden p-4">
+                    <div className="h-full overflow-hidden rounded-lg border border-border/40">
+                      <SqlEditor
+                        value={sqlDraft}
+                        onChange={setSqlDraft}
+                        onRun={() => {
+                          handleRun();
+                          setExpandedOpen(false);
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-border/30 px-4 py-3">
+                    <p className="text-xs text-muted-foreground">
+                      Cmd+Enter to run and close
+                    </p>
+                    <Button
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => {
+                        handleRun();
+                        setExpandedOpen(false);
+                      }}
+                      disabled={loading}
+                    >
+                      {loading ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Play className="h-3.5 w-3.5" />
+                      )}
+                      Run
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              <Button
+                size="sm"
+                className="h-7 gap-1.5 text-xs"
+                onClick={handleRun}
+                disabled={loading}
+              >
+                {loading ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Play className="h-3 w-3" />
+                )}
+                Run
+              </Button>
+            </div>
           </div>
           <div className="h-40 overflow-hidden rounded-lg border border-border/40">
             <SqlEditor
