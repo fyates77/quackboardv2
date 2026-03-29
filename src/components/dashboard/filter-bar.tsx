@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, X, Filter } from "lucide-react";
 import { useDashboardStore } from "@/stores/dashboard-store";
 import { useEngine } from "@/engine/use-engine";
 import { createId } from "@/lib/id";
 import { Button } from "@/components/ui/button";
 import type { DashboardFilter, DashboardFilterType } from "@/types/dashboard";
+import type { ColumnInfo } from "@/engine/types";
 
 interface FilterBarProps {
   dashboardId: string;
@@ -21,21 +22,7 @@ export function FilterBar({
 }: FilterBarProps) {
   const addFilter = useDashboardStore((s) => s.addFilter);
   const removeFilter = useDashboardStore((s) => s.removeFilter);
-  const updateFilter = useDashboardStore((s) => s.updateFilter);
   const [adding, setAdding] = useState(false);
-
-  const handleAdd = useCallback(
-    (type: DashboardFilterType) => {
-      const filter: DashboardFilter = {
-        id: createId(),
-        name: `filter_${(filters.length + 1).toString()}`,
-        type,
-      };
-      addFilter(dashboardId, filter);
-      setAdding(false);
-    },
-    [dashboardId, filters.length, addFilter],
-  );
 
   if (filters.length === 0 && !adding) {
     return (
@@ -58,15 +45,11 @@ export function FilterBar({
       <Filter className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
 
       {filters.map((filter) => (
-        <FilterControl
+        <FilterChip
           key={filter.id}
-          dashboardId={dashboardId}
           filter={filter}
           value={filterValues[filter.name] ?? ""}
           onChange={(val) => onFilterChange(filter.name, val)}
-          onUpdate={(updates) =>
-            updateFilter(dashboardId, filter.id, updates)
-          }
           onRemove={() => {
             removeFilter(dashboardId, filter.id);
             onFilterChange(filter.name, "");
@@ -75,40 +58,13 @@ export function FilterBar({
       ))}
 
       {adding ? (
-        <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 text-xs"
-            onClick={() => handleAdd("select")}
-          >
-            Dropdown
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 text-xs"
-            onClick={() => handleAdd("date-range")}
-          >
-            Date
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 text-xs"
-            onClick={() => handleAdd("text")}
-          >
-            Text
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={() => setAdding(false)}
-          >
-            <X className="h-3 w-3" />
-          </Button>
-        </div>
+        <SchemaPicker
+          onSelect={(filter) => {
+            addFilter(dashboardId, filter);
+            setAdding(false);
+          }}
+          onCancel={() => setAdding(false)}
+        />
       ) : (
         <Button
           variant="ghost"
@@ -124,27 +80,162 @@ export function FilterBar({
   );
 }
 
-// ── Individual filter control ──
+// ── Schema picker: table → column → auto-create filter ──
 
-interface FilterControlProps {
-  dashboardId: string;
+interface SchemaPickerProps {
+  onSelect: (filter: DashboardFilter) => void;
+  onCancel: () => void;
+}
+
+function inferFilterType(colType: string): DashboardFilterType {
+  const t = colType.toLowerCase();
+  if (t.includes("date") || t.includes("time") || t.includes("timestamp")) {
+    return "date-range";
+  }
+  if (
+    t.includes("varchar") ||
+    t.includes("text") ||
+    t.includes("enum") ||
+    t.includes("bool")
+  ) {
+    return "select";
+  }
+  // Integers with likely low cardinality (e.g. category IDs) → select
+  // High cardinality numbers → text
+  return "select";
+}
+
+function SchemaPicker({ onSelect, onCancel }: SchemaPickerProps) {
+  const engine = useEngine();
+  const [tables, setTables] = useState<string[]>([]);
+  const [selectedTable, setSelectedTable] = useState<string | null>(null);
+  const [columns, setColumns] = useState<ColumnInfo[]>([]);
+
+  // Load tables on mount
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const t = await engine.listTables();
+        if (!cancelled) setTables(t);
+      } catch {
+        // engine not ready
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [engine]);
+
+  // Load columns when table selected
+  useEffect(() => {
+    if (!selectedTable) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const cols = await engine.describeTable(selectedTable);
+        if (!cancelled) setColumns(cols);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [engine, selectedTable]);
+
+  const handleColumnSelect = (col: ColumnInfo) => {
+    const filterType = inferFilterType(col.type);
+    const filter: DashboardFilter = {
+      id: createId(),
+      name: col.name,
+      type: filterType,
+      table: selectedTable!,
+      column: col.name,
+    };
+    onSelect(filter);
+  };
+
+  return (
+    <div className="flex items-center gap-1 rounded-md border border-border/50 bg-background/60 px-2 py-1 backdrop-blur-sm">
+      {!selectedTable ? (
+        <>
+          <select
+            autoFocus
+            className="bg-transparent text-xs outline-none"
+            value=""
+            onChange={(e) => {
+              if (e.target.value) setSelectedTable(e.target.value);
+            }}
+          >
+            <option value="" disabled>
+              {tables.length === 0 ? "No tables loaded" : "Select table..."}
+            </option>
+            {tables.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5"
+            onClick={onCancel}
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        </>
+      ) : (
+        <>
+          <span className="text-xs text-muted-foreground">{selectedTable}.</span>
+          <select
+            autoFocus
+            className="bg-transparent text-xs outline-none"
+            value=""
+            onChange={(e) => {
+              const col = columns.find((c) => c.name === e.target.value);
+              if (col) handleColumnSelect(col);
+            }}
+          >
+            <option value="" disabled>
+              Select column...
+            </option>
+            {columns.map((c) => (
+              <option key={c.name} value={c.name}>
+                {c.name} ({c.type})
+              </option>
+            ))}
+          </select>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5"
+            onClick={() => {
+              setSelectedTable(null);
+              setColumns([]);
+            }}
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Filter chip: shows value control + template hint ──
+
+interface FilterChipProps {
   filter: DashboardFilter;
   value: string;
   onChange: (value: string) => void;
-  onUpdate: (updates: Partial<DashboardFilter>) => void;
   onRemove: () => void;
 }
 
-function FilterControl({
-  filter,
-  value,
-  onChange,
-  onUpdate,
-  onRemove,
-}: FilterControlProps) {
+function FilterChip({ filter, value, onChange, onRemove }: FilterChipProps) {
   const engine = useEngine();
   const [options, setOptions] = useState<string[]>([]);
-  const [editingName, setEditingName] = useState(!filter.column && filter.type === "select");
 
   // Load distinct values for select filters
   useEffect(() => {
@@ -153,8 +244,8 @@ function FilterControl({
 
     (async () => {
       try {
-        const col = filter.column!.replace(/'/g, "''");
-        const table = filter.table!.replace(/'/g, "''");
+        const col = filter.column!.replace(/"/g, '""');
+        const table = filter.table!.replace(/"/g, '""');
         const result = await engine.executeQuery(
           `SELECT DISTINCT "${col}" FROM "${table}" ORDER BY "${col}" LIMIT 200`,
         );
@@ -166,7 +257,7 @@ function FilterControl({
           );
         }
       } catch {
-        // Silently fail - user might not have configured table/column yet
+        // table/column might not exist
       }
     })();
 
@@ -176,77 +267,27 @@ function FilterControl({
   }, [engine, filter.type, filter.column, filter.table]);
 
   return (
-    <div className="flex items-center gap-1 rounded-md border border-border/50 bg-background/40 px-2 py-1">
-      {editingName ? (
-        <input
-          autoFocus
-          className="w-20 bg-transparent text-xs font-medium outline-none"
-          placeholder="name"
-          defaultValue={filter.name}
-          onBlur={(e) => {
-            const name = e.target.value.trim().replace(/\s+/g, "_") || filter.name;
-            onUpdate({ name });
-            setEditingName(false);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-          }}
-        />
-      ) : (
-        <span
-          className="text-xs font-medium text-muted-foreground cursor-pointer"
-          onDoubleClick={() => setEditingName(true)}
-          title={`{{${filter.name}}} — double-click to rename`}
-        >
-          {filter.name}
-        </span>
-      )}
+    <div className="flex items-center gap-1.5 rounded-md border border-border/50 bg-background/40 px-2 py-1">
+      <span
+        className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-mono text-primary cursor-default select-all"
+        title="Use this in your SQL query"
+      >
+        {`{{${filter.name}}}`}
+      </span>
 
       {filter.type === "select" && (
-        <>
-          {!filter.column ? (
-            <div className="flex items-center gap-1">
-              <input
-                className="w-16 bg-transparent text-xs outline-none placeholder:text-muted-foreground/60"
-                placeholder="table"
-                onBlur={(e) => {
-                  if (e.target.value.trim()) {
-                    onUpdate({ table: e.target.value.trim() });
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                }}
-              />
-              <span className="text-xs text-muted-foreground">.</span>
-              <input
-                className="w-16 bg-transparent text-xs outline-none placeholder:text-muted-foreground/60"
-                placeholder="column"
-                onBlur={(e) => {
-                  if (e.target.value.trim()) {
-                    onUpdate({ column: e.target.value.trim() });
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                }}
-              />
-            </div>
-          ) : (
-            <select
-              className="max-w-40 bg-transparent text-xs outline-none"
-              value={value}
-              onChange={(e) => onChange(e.target.value)}
-            >
-              <option value="">All</option>
-              {options.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
-          )}
-        </>
+        <select
+          className="max-w-40 bg-transparent text-xs outline-none"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          <option value="">All</option>
+          {options.map((opt) => (
+            <option key={opt} value={opt}>
+              {opt}
+            </option>
+          ))}
+        </select>
       )}
 
       {filter.type === "date-range" && (

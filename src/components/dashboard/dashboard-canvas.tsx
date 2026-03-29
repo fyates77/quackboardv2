@@ -16,6 +16,7 @@ interface DashboardCanvasProps {
   dashboardId: string;
   queryResults: Map<string, QueryResult>;
   loadingPanels: Set<string>;
+  onDuplicatePanel?: (sourcePanelId: string, newPanelId: string) => void;
 }
 
 const GRID_CONFIG = {
@@ -30,6 +31,7 @@ export function DashboardCanvas({
   dashboardId,
   queryResults,
   loadingPanels,
+  onDuplicatePanel,
 }: DashboardCanvasProps) {
   const dashboard = useDashboardStore((s) => s.dashboards[dashboardId]);
   const updateLayout = useDashboardStore((s) => s.updateLayout);
@@ -86,6 +88,7 @@ export function DashboardCanvas({
                   panel={panel}
                   queryResult={queryResults.get(panel.id) ?? null}
                   loading={loadingPanels.has(panel.id)}
+                  onDuplicate={onDuplicatePanel}
                 />
               </PanelErrorBoundary>
             </div>

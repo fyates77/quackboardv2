@@ -13,6 +13,7 @@ interface PanelContainerProps {
   panel: Panel;
   queryResult: QueryResult | null;
   loading?: boolean;
+  onDuplicate?: (sourcePanelId: string, newPanelId: string) => void;
 }
 
 export function PanelContainer({
@@ -20,6 +21,7 @@ export function PanelContainer({
   panel,
   queryResult,
   loading,
+  onDuplicate,
 }: PanelContainerProps) {
   const removePanel = useDashboardStore((s) => s.removePanel);
   const duplicatePanel = useDashboardStore((s) => s.duplicatePanel);
@@ -123,7 +125,8 @@ export function PanelContainer({
               title="Duplicate panel"
               onClick={(e) => {
                 e.stopPropagation();
-                duplicatePanel(dashboardId, panel.id);
+                const newId = duplicatePanel(dashboardId, panel.id);
+                if (newId && onDuplicate) onDuplicate(panel.id, newId);
               }}
             >
               <Copy className="h-3 w-3" />

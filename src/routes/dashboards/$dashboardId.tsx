@@ -128,6 +128,16 @@ function DashboardEditorPage() {
     handleLoadingChange,
   ]);
 
+  const handleDuplicatePanel = useCallback(
+    (sourcePanelId: string, newPanelId: string) => {
+      const sourceResult = queryResults.get(sourcePanelId);
+      if (sourceResult) {
+        handleQueryResult(newPanelId, sourceResult);
+      }
+    },
+    [queryResults, handleQueryResult],
+  );
+
   const handleFilterChange = useCallback(
     (name: string, value: string) => {
       setFilterValues((prev) => ({ ...prev, [name]: value }));
@@ -193,6 +203,7 @@ function DashboardEditorPage() {
               dashboardId={dashboardId}
               queryResults={queryResults}
               loadingPanels={loadingPanels}
+              onDuplicatePanel={handleDuplicatePanel}
             />
           )}
         </div>
