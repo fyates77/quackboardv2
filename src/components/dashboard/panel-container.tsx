@@ -3,15 +3,22 @@ import { GripVertical, Pencil, Trash2, X, Check } from "lucide-react";
 import { useDashboardStore } from "@/stores/dashboard-store";
 import { useUIStore } from "@/stores/ui-store";
 import { Button } from "@/components/ui/button";
+import { ChartRenderer } from "@/components/visualizations/chart-renderer";
 import { cn } from "@/lib/utils";
 import type { Panel } from "@/types/dashboard";
+import type { QueryResult } from "@/engine/types";
 
 interface PanelContainerProps {
   dashboardId: string;
   panel: Panel;
+  queryResult: QueryResult | null;
 }
 
-export function PanelContainer({ dashboardId, panel }: PanelContainerProps) {
+export function PanelContainer({
+  dashboardId,
+  panel,
+  queryResult,
+}: PanelContainerProps) {
   const removePanel = useDashboardStore((s) => s.removePanel);
   const updatePanelTitle = useDashboardStore((s) => s.updatePanelTitle);
   const { activePanelId, setActivePanelId } = useUIStore();
@@ -65,7 +72,12 @@ export function PanelContainer({ dashboardId, panel }: PanelContainerProps) {
                 }
               }}
             />
-            <Button type="submit" variant="ghost" size="icon" className="h-6 w-6">
+            <Button
+              type="submit"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+            >
               <Check className="h-3 w-3" />
             </Button>
             <Button
@@ -116,16 +128,18 @@ export function PanelContainer({ dashboardId, panel }: PanelContainerProps) {
         )}
       </div>
 
-      {/* Content area -- placeholder until Phase 4 adds the SQL editor + viz */}
-      <div className="flex flex-1 items-center justify-center overflow-auto p-3">
-        {panel.query.sql ? (
-          <pre className="w-full rounded bg-muted p-2 text-xs whitespace-pre-wrap">
-            {panel.query.sql}
-          </pre>
+      {/* Content area */}
+      <div className="flex-1 overflow-hidden p-2">
+        {queryResult ? (
+          <ChartRenderer result={queryResult} config={panel.visualization} />
+        ) : panel.query.sql ? (
+          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+            Click Run in the editor to execute query
+          </div>
         ) : (
-          <p className="text-xs text-muted-foreground">
-            Click to configure query
-          </p>
+          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+            Select this panel to write a query
+          </div>
         )}
       </div>
     </div>

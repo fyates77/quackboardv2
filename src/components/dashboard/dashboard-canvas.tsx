@@ -9,9 +9,11 @@ import { useDashboardStore } from "@/stores/dashboard-store";
 import { useContainerWidth } from "@/hooks/use-resize-observer";
 import { PanelContainer } from "./panel-container";
 import type { LayoutItem } from "@/types/dashboard";
+import type { QueryResult } from "@/engine/types";
 
 interface DashboardCanvasProps {
   dashboardId: string;
+  queryResults: Map<string, QueryResult>;
 }
 
 const GRID_CONFIG = {
@@ -22,7 +24,10 @@ const GRID_CONFIG = {
   maxRows: Infinity,
 };
 
-export function DashboardCanvas({ dashboardId }: DashboardCanvasProps) {
+export function DashboardCanvas({
+  dashboardId,
+  queryResults,
+}: DashboardCanvasProps) {
   const dashboard = useDashboardStore((s) => s.dashboards[dashboardId]);
   const updateLayout = useDashboardStore((s) => s.updateLayout);
   const [containerRef, containerWidth] = useContainerWidth();
@@ -75,6 +80,7 @@ export function DashboardCanvas({ dashboardId }: DashboardCanvasProps) {
               <PanelContainer
                 dashboardId={dashboardId}
                 panel={panel}
+                queryResult={queryResults.get(panel.id) ?? null}
               />
             </div>
           ))}
