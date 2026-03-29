@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { GripVertical, Pencil, Trash2, X, Check } from "lucide-react";
+import { GripVertical, Pencil, Trash2, X, Check, Loader2 } from "lucide-react";
 import { useDashboardStore } from "@/stores/dashboard-store";
 import { useUIStore } from "@/stores/ui-store";
 import { Button } from "@/components/ui/button";
@@ -12,12 +12,14 @@ interface PanelContainerProps {
   dashboardId: string;
   panel: Panel;
   queryResult: QueryResult | null;
+  loading?: boolean;
 }
 
 export function PanelContainer({
   dashboardId,
   panel,
   queryResult,
+  loading,
 }: PanelContainerProps) {
   const removePanel = useDashboardStore((s) => s.removePanel);
   const updatePanelTitle = useDashboardStore((s) => s.updatePanelTitle);
@@ -129,12 +131,17 @@ export function PanelContainer({
       </div>
 
       {/* Content area */}
-      <div className="flex-1 overflow-hidden p-2">
+      <div className="relative flex-1 overflow-hidden p-2">
+        {loading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-card/80">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        )}
         {queryResult ? (
           <ChartRenderer result={queryResult} config={panel.visualization} />
         ) : panel.query.sql ? (
           <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-            Click Run in the editor to execute query
+            Loading...
           </div>
         ) : (
           <div className="flex h-full items-center justify-center text-xs text-muted-foreground">

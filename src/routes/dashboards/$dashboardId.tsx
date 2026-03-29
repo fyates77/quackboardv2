@@ -1,8 +1,10 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useDashboardStore } from "@/stores/dashboard-store";
 import { useUIStore } from "@/stores/ui-store";
+import { useEngine } from "@/engine/use-engine";
+import { useAutoRunPanels } from "@/hooks/use-auto-run-panels";
 import { DashboardToolbar } from "@/components/dashboard/dashboard-toolbar";
 import { DashboardCanvas } from "@/components/dashboard/dashboard-canvas";
 import { PanelEditor } from "@/components/dashboard/panel-editor";
@@ -17,10 +19,14 @@ function DashboardEditorPage() {
   const { dashboardId } = Route.useParams();
   const dashboard = useDashboardStore((s) => s.dashboards[dashboardId]);
   const addPanel = useDashboardStore((s) => s.addPanel);
-  const activePanelId = useUIStore((s) => s.activePanelId);
+  const { activePanelId, setActivePanelId } = useUIStore();
+  const engine = useEngine();
 
   const [queryResults, setQueryResults] = useState<Map<string, QueryResult>>(
     () => new Map(),
+  );
+  const [loadingPanels, setLoadingPanels] = useState<Set<string>>(
+    () => new Set(),
   );
 
   const handleQueryResult = useCallback(
@@ -37,6 +43,41 @@ function DashboardEditorPage() {
     },
     [],
   );
+
+  const handleLoadingChange = useCallback(
+    (panelId: string, loading: boolean) => {
+      setLoadingPanels((prev) => {
+        const next = new Set(prev);
+        if (loading) {
+          next.add(panelId);
+        } else {
+          next.delete(panelId);
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
+  // Auto-execute all panel queries when the dashboard first loads
+  useAutoRunPanels(
+    engine,
+    dashboard?.panels ?? [],
+    handleQueryResult,
+    handleLoadingChange,
+  );
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Escape: close panel editor
+      if (e.key === "Escape" && activePanelId) {
+        setActivePanelId(null);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [activePanelId, setActivePanelId]);
 
   if (!dashboard) {
     return (
@@ -77,6 +118,7 @@ function DashboardEditorPage() {
             <DashboardCanvas
               dashboardId={dashboardId}
               queryResults={queryResults}
+              loadingPanels={loadingPanels}
             />
           )}
         </div>
