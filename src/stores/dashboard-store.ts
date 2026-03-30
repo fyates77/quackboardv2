@@ -5,6 +5,8 @@ import { createId } from "@/lib/id";
 import type {
   Dashboard,
   DashboardFilter,
+  DashboardParameter,
+  DashboardTab,
   Panel,
   LayoutItem,
   VisualizationConfig,
@@ -53,6 +55,27 @@ interface DashboardState {
     updates: Partial<DashboardFilter>,
   ) => void;
   removeFilter: (dashboardId: string, filterId: string) => void;
+
+  updatePanel: (
+    dashboardId: string,
+    panelId: string,
+    updates: Partial<Panel>,
+  ) => void;
+
+  // Parameters
+  addParameter: (dashboardId: string, param: DashboardParameter) => void;
+  updateParameter: (
+    dashboardId: string,
+    paramId: string,
+    updates: Partial<DashboardParameter>,
+  ) => void;
+  removeParameter: (dashboardId: string, paramId: string) => void;
+
+  // Tabs
+  setTabs: (dashboardId: string, tabs: DashboardTab[]) => void;
+
+  // Layout mode
+  setLayoutMode: (dashboardId: string, mode: "grid" | "scroll") => void;
 }
 
 export const useDashboardStore = create<DashboardState>()(
@@ -403,6 +426,108 @@ export const useDashboardStore = create<DashboardState>()(
                 filters: (dash.filters ?? []).filter(
                   (f) => f.id !== filterId,
                 ),
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          };
+        }),
+
+      updatePanel: (dashboardId, panelId, updates) =>
+        set((state) => {
+          const dash = state.dashboards[dashboardId];
+          if (!dash) return state;
+          return {
+            dashboards: {
+              ...state.dashboards,
+              [dashboardId]: {
+                ...dash,
+                panels: dash.panels.map((p) =>
+                  p.id === panelId ? { ...p, ...updates } : p,
+                ),
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          };
+        }),
+
+      addParameter: (dashboardId, param) =>
+        set((state) => {
+          const dash = state.dashboards[dashboardId];
+          if (!dash) return state;
+          return {
+            dashboards: {
+              ...state.dashboards,
+              [dashboardId]: {
+                ...dash,
+                parameters: [...(dash.parameters ?? []), param],
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          };
+        }),
+
+      updateParameter: (dashboardId, paramId, updates) =>
+        set((state) => {
+          const dash = state.dashboards[dashboardId];
+          if (!dash) return state;
+          return {
+            dashboards: {
+              ...state.dashboards,
+              [dashboardId]: {
+                ...dash,
+                parameters: (dash.parameters ?? []).map((p) =>
+                  p.id === paramId ? { ...p, ...updates } : p,
+                ),
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          };
+        }),
+
+      removeParameter: (dashboardId, paramId) =>
+        set((state) => {
+          const dash = state.dashboards[dashboardId];
+          if (!dash) return state;
+          return {
+            dashboards: {
+              ...state.dashboards,
+              [dashboardId]: {
+                ...dash,
+                parameters: (dash.parameters ?? []).filter(
+                  (p) => p.id !== paramId,
+                ),
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          };
+        }),
+
+      setTabs: (dashboardId, tabs) =>
+        set((state) => {
+          const dash = state.dashboards[dashboardId];
+          if (!dash) return state;
+          return {
+            dashboards: {
+              ...state.dashboards,
+              [dashboardId]: {
+                ...dash,
+                tabs,
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          };
+        }),
+
+      setLayoutMode: (dashboardId, mode) =>
+        set((state) => {
+          const dash = state.dashboards[dashboardId];
+          if (!dash) return state;
+          return {
+            dashboards: {
+              ...state.dashboards,
+              [dashboardId]: {
+                ...dash,
+                layoutMode: mode,
                 updatedAt: new Date().toISOString(),
               },
             },

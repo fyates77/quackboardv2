@@ -8,11 +8,37 @@ export interface Dashboard {
   layout: LayoutItem[];
   filters: DashboardFilter[];
   settings: DashboardSettings;
+  /** Named tabs for grouping panels */
+  tabs?: DashboardTab[];
+  /** Layout mode: grid (default) or vertical scroll */
+  layoutMode?: "grid" | "scroll";
+  /** Dashboard-level parameters (what-if inputs) */
+  parameters?: DashboardParameter[];
 }
 
 export interface DashboardSettings {
   refreshInterval: number | null;
   defaultDataSourceId: string | null;
+}
+
+export interface DashboardTab {
+  id: string;
+  label: string;
+  panelIds: string[];
+}
+
+export type ParameterType = "number" | "text" | "select" | "toggle";
+
+export interface DashboardParameter {
+  id: string;
+  name: string;
+  label: string;
+  type: ParameterType;
+  default: string | number | boolean;
+  min?: number;
+  max?: number;
+  step?: number;
+  options?: string[];
 }
 
 export type DashboardFilterType = "select" | "date-range" | "text";
@@ -36,6 +62,55 @@ export interface Panel {
   visualization: VisualizationConfig;
   /** Whether {{filter}} placeholders are interpolated. Defaults to true. */
   applyDashboardFilters?: boolean;
+  /** Drilldown column hierarchy (e.g. ["region", "state", "city"]) */
+  drilldownLevels?: string[];
+  /** Navigate to another dashboard on click */
+  drilldownTarget?: {
+    dashboardId: string;
+    filterMapping: Record<string, string>;
+  };
+  /** Allow consumers to see underlying data rows */
+  showDataDrawer?: boolean;
+  /** Allow consumers to see the SQL query */
+  showQueryToConsumer?: boolean;
+  /** Fields to show in record detail view (all if omitted) */
+  recordFields?: string[];
+  /** Markdown content (for markdown panel type) */
+  markdownContent?: string;
+  /** HTML content (for html panel type) */
+  htmlContent?: string;
+  /** Image URL (for image panel type) */
+  imageUrl?: string;
+  /** Embed URL (for embed panel type) */
+  embedUrl?: string;
+  /** Visibility condition */
+  visibilityCondition?: VisibilityCondition;
+  /** Annotations pinned to data points */
+  annotations?: PanelAnnotation[];
+  /** Action buttons shown on panel chrome */
+  actions?: PanelAction[];
+}
+
+export interface VisibilityCondition {
+  type: "query" | "filter" | "always";
+  /** For "filter" type: filter name that must have a value */
+  filterName?: string;
+  /** For "query" type: visible when panel's own query returns rows */
+  /** For "always": always visible (default behavior) */
+}
+
+export interface PanelAnnotation {
+  id: string;
+  text: string;
+  x?: unknown;
+  y?: unknown;
+  createdAt: string;
+}
+
+export interface PanelAction {
+  label: string;
+  type: "export-png" | "export-csv" | "copy" | "link";
+  url?: string;
 }
 
 export interface PanelQuery {
@@ -70,7 +145,11 @@ export type VisualizationType =
   | "difference"
   | "flow"
   | "funnel"
-  | "treemap";
+  | "treemap"
+  | "markdown"
+  | "image"
+  | "embed"
+  | "html";
 
 export interface VisualizationConfig {
   type: VisualizationType;

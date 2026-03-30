@@ -1,18 +1,62 @@
 import type { QueryResult } from "@/engine/types";
-import type { VisualizationConfig } from "@/types/dashboard";
+import type { Panel, VisualizationConfig } from "@/types/dashboard";
 import { PlotChart } from "./plot-chart";
 import { PieChart } from "./pie-chart";
 import { KpiCard } from "./kpi-card";
 import { DataTable } from "./data-table";
 import { FunnelChart } from "./funnel-chart";
 import { TreemapChart } from "./treemap-chart";
+import { MarkdownPanel } from "./markdown-panel";
+import { ImagePanel } from "./image-panel";
+import { EmbedPanel } from "./embed-panel";
+import { HtmlPanel } from "./html-panel";
 
 interface ChartRendererProps {
   result: QueryResult;
   config: VisualizationConfig;
+  /** Full panel for content panel types that read markdownContent etc. */
+  panel?: Panel;
+  /** All panel results for template variable resolution in markdown/html */
+  allResults?: Map<string, QueryResult>;
 }
 
-export function ChartRenderer({ result, config }: ChartRendererProps) {
+export function ChartRenderer({ result, config, panel, allResults }: ChartRendererProps) {
+  // Content panel types don't need query results
+  if (config.type === "markdown") {
+    return (
+      <MarkdownPanel
+        content={panel?.markdownContent ?? ""}
+        panelResults={allResults}
+      />
+    );
+  }
+
+  if (config.type === "image") {
+    return (
+      <ImagePanel
+        url={panel?.imageUrl ?? ""}
+      />
+    );
+  }
+
+  if (config.type === "embed") {
+    return (
+      <EmbedPanel
+        url={panel?.embedUrl ?? ""}
+      />
+    );
+  }
+
+  if (config.type === "html") {
+    return (
+      <HtmlPanel
+        content={panel?.htmlContent ?? ""}
+        panelResults={allResults}
+      />
+    );
+  }
+
+  // Data-driven panel types need results
   if (result.rows.length === 0) {
     return (
       <div className="flex h-full items-center justify-center text-xs text-muted-foreground">

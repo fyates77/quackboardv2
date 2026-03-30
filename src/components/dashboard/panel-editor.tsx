@@ -26,14 +26,19 @@ interface PanelEditorProps {
   panel: Panel;
   filters?: DashboardFilter[];
   filterValues?: Record<string, string>;
+  parameterValues?: Record<string, string | number | boolean>;
   onQueryResult: (panelId: string, result: QueryResult | null) => void;
 }
+
+/** Panel types that don't need a SQL query */
+const CONTENT_PANEL_TYPES = new Set(["markdown", "image", "embed", "html"]);
 
 export function PanelEditor({
   dashboardId,
   panel,
   filters = [],
   filterValues = {},
+  parameterValues = {},
   onQueryResult,
 }: PanelEditorProps) {
   const updatePanelQuery = useDashboardStore((s) => s.updatePanelQuery);
@@ -43,6 +48,7 @@ export function PanelEditor({
   const updatePanelVisualization = useDashboardStore(
     (s) => s.updatePanelVisualization,
   );
+  const updatePanel = useDashboardStore((s) => s.updatePanel);
   const setActivePanelId = useUIStore((s) => s.setActivePanelId);
 
   const [sqlDraft, setSqlDraft] = useState(panel.query.sql);
@@ -71,10 +77,10 @@ export function PanelEditor({
     // Persist SQL to store (with template placeholders intact)
     updatePanelQuery(dashboardId, panel.id, trimmed);
 
-    // Apply dashboard filters (if enabled for this panel)
+    // Apply dashboard filters and parameters (if enabled for this panel)
     const resolvedSql =
       panel.applyDashboardFilters !== false
-        ? applyFilters(trimmed, filters, filterValues)
+        ? applyFilters(trimmed, filters, filterValues, parameterValues)
         : trimmed;
     const result = await execute(resolvedSql);
 
@@ -136,7 +142,83 @@ export function PanelEditor({
       </div>
 
       <div className="flex-1 overflow-auto">
-        {/* SQL Editor section */}
+        {/* Content panel editors (markdown, image, embed, html) */}
+        {panel.visualization.type === "markdown" && (
+          <div className="border-b border-border/30 p-3">
+            <label className="mb-2 block text-xs font-medium text-muted-foreground">
+              Markdown Content
+            </label>
+            <textarea
+              className="w-full rounded-lg border border-border/40 bg-background p-2 text-sm font-mono outline-none focus:ring-1 focus:ring-ring"
+              rows={10}
+              placeholder={"# Heading\n\nWrite **markdown** here.\n\nUse {{panels.panelId.column}} for template variables."}
+              value={panel.markdownContent ?? ""}
+              onChange={(e) =>
+                updatePanel(dashboardId, panel.id, {
+                  markdownContent: e.target.value,
+                })
+              }
+            />
+          </div>
+        )}
+
+        {panel.visualization.type === "image" && (
+          <div className="border-b border-border/30 p-3">
+            <label className="mb-2 block text-xs font-medium text-muted-foreground">
+              Image URL
+            </label>
+            <input
+              className="w-full rounded border bg-background px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-ring"
+              placeholder="https://..."
+              value={panel.imageUrl ?? ""}
+              onChange={(e) =>
+                updatePanel(dashboardId, panel.id, {
+                  imageUrl: e.target.value,
+                })
+              }
+            />
+          </div>
+        )}
+
+        {panel.visualization.type === "embed" && (
+          <div className="border-b border-border/30 p-3">
+            <label className="mb-2 block text-xs font-medium text-muted-foreground">
+              Embed URL
+            </label>
+            <input
+              className="w-full rounded border bg-background px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-ring"
+              placeholder="https://..."
+              value={panel.embedUrl ?? ""}
+              onChange={(e) =>
+                updatePanel(dashboardId, panel.id, {
+                  embedUrl: e.target.value,
+                })
+              }
+            />
+          </div>
+        )}
+
+        {panel.visualization.type === "html" && (
+          <div className="border-b border-border/30 p-3">
+            <label className="mb-2 block text-xs font-medium text-muted-foreground">
+              HTML Content
+            </label>
+            <textarea
+              className="w-full rounded-lg border border-border/40 bg-background p-2 text-sm font-mono outline-none focus:ring-1 focus:ring-ring"
+              rows={10}
+              placeholder={"<div>\n  Custom HTML content\n</div>"}
+              value={panel.htmlContent ?? ""}
+              onChange={(e) =>
+                updatePanel(dashboardId, panel.id, {
+                  htmlContent: e.target.value,
+                })
+              }
+            />
+          </div>
+        )}
+
+        {/* SQL Editor section (hidden for content panels) */}
+        {!CONTENT_PANEL_TYPES.has(panel.visualization.type) && (
         <div className="border-b border-border/30 p-3">
           <div className="mb-2 flex items-center justify-between">
             <label className="text-xs font-medium text-muted-foreground">
@@ -251,6 +333,7 @@ export function PanelEditor({
             </button>
           </div>
         </div>
+        )}
 
         {/* Error */}
         {error && (

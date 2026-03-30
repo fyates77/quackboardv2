@@ -17,6 +17,10 @@ interface DashboardCanvasProps {
   queryResults: Map<string, QueryResult>;
   loadingPanels: Set<string>;
   onDuplicatePanel?: (sourcePanelId: string, newPanelId: string) => void;
+  /** If set, only show panels in this set (for tabs) */
+  visiblePanelIds?: Set<string> | null;
+  /** All panel results for template variable resolution */
+  allResults?: Map<string, QueryResult>;
 }
 
 const GRID_CONFIG = {
@@ -32,6 +36,8 @@ export function DashboardCanvas({
   queryResults,
   loadingPanels,
   onDuplicatePanel,
+  visiblePanelIds,
+  allResults,
 }: DashboardCanvasProps) {
   const dashboard = useDashboardStore((s) => s.dashboards[dashboardId]);
   const updateLayout = useDashboardStore((s) => s.updateLayout);
@@ -80,7 +86,9 @@ export function DashboardCanvas({
           dragConfig={{ handle: ".panel-drag-handle" }}
           onLayoutChange={handleLayoutChange}
         >
-          {dashboard.panels.map((panel) => (
+          {dashboard.panels
+            .filter((p) => !visiblePanelIds || visiblePanelIds.has(p.id))
+            .map((panel) => (
             <div key={panel.id}>
               <PanelErrorBoundary panelTitle={panel.title}>
                 <PanelContainer
@@ -89,6 +97,7 @@ export function DashboardCanvas({
                   queryResult={queryResults.get(panel.id) ?? null}
                   loading={loadingPanels.has(panel.id)}
                   onDuplicate={onDuplicatePanel}
+                  allResults={allResults}
                 />
               </PanelErrorBoundary>
             </div>

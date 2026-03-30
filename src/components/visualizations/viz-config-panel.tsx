@@ -16,6 +16,10 @@ import {
   Workflow,
   Funnel,
   LayoutDashboard,
+  FileText,
+  ImageIcon,
+  Globe,
+  Code2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,6 +68,10 @@ const VIZ_TYPES: { type: VisualizationType; label: string; icon: typeof BarChart
   { type: "pie", label: "Pie", icon: PieChart },
   { type: "table", label: "Table", icon: Table2 },
   { type: "kpi", label: "KPI", icon: Hash },
+  { type: "markdown", label: "Text", icon: FileText },
+  { type: "image", label: "Image", icon: ImageIcon },
+  { type: "embed", label: "Embed", icon: Globe },
+  { type: "html", label: "HTML", icon: Code2 },
 ];
 
 const PLOT_TYPES = new Set<VisualizationType>([

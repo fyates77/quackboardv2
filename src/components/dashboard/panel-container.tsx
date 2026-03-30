@@ -1,12 +1,28 @@
 import { useState } from "react";
-import { GripVertical, Pencil, Trash2, Copy, X, Check, Loader2 } from "lucide-react";
+import {
+  GripVertical,
+  Pencil,
+  Trash2,
+  Copy,
+  X,
+  Check,
+  Loader2,
+  TableProperties,
+} from "lucide-react";
 import { useDashboardStore } from "@/stores/dashboard-store";
 import { useUIStore } from "@/stores/ui-store";
+import { useInteractionStore } from "@/stores/interaction-store";
 import { Button } from "@/components/ui/button";
 import { ChartRenderer } from "@/components/visualizations/chart-renderer";
+import { DrilldownBreadcrumb } from "./drilldown/drilldown-breadcrumb";
+import { DrillDrawer } from "./drilldown/drill-drawer";
+import { RecordDetail } from "./drilldown/record-detail";
 import { cn } from "@/lib/utils";
 import type { Panel } from "@/types/dashboard";
 import type { QueryResult } from "@/engine/types";
+
+/** Panel types that don't need a SQL query to render */
+const CONTENT_PANEL_TYPES = new Set(["markdown", "image", "embed", "html"]);
 
 interface PanelContainerProps {
   dashboardId: string;
@@ -14,6 +30,7 @@ interface PanelContainerProps {
   queryResult: QueryResult | null;
   loading?: boolean;
   onDuplicate?: (sourcePanelId: string, newPanelId: string) => void;
+  allResults?: Map<string, QueryResult>;
 }
 
 export function PanelContainer({
@@ -22,15 +39,34 @@ export function PanelContainer({
   queryResult,
   loading,
   onDuplicate,
+  allResults,
 }: PanelContainerProps) {
   const removePanel = useDashboardStore((s) => s.removePanel);
   const duplicatePanel = useDashboardStore((s) => s.duplicatePanel);
   const updatePanelTitle = useDashboardStore((s) => s.updatePanelTitle);
   const { activePanelId, setActivePanelId } = useUIStore();
+  const setDataDrawerPanelId = useInteractionStore(
+    (s) => s.setDataDrawerPanelId,
+  );
+  const dataDrawerPanelId = useInteractionStore((s) => s.dataDrawerPanelId);
   const isActive = activePanelId === panel.id;
 
   const [editing, setEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState(panel.title);
+
+  const isContentPanel = CONTENT_PANEL_TYPES.has(panel.visualization.type);
+
+  // Conditional visibility check
+  if (panel.visibilityCondition) {
+    const cond = panel.visibilityCondition;
+    if (cond.type === "filter" && cond.filterName) {
+      // We don't have filterValues here, so visibility is handled by the parent
+      // This is a placeholder — actual filtering happens in the dashboard editor
+    }
+    if (cond.type === "query" && queryResult && queryResult.rowCount === 0) {
+      return null;
+    }
+  }
 
   const commitTitle = () => {
     const trimmed = titleDraft.trim();
@@ -107,6 +143,25 @@ export function PanelContainer({
             >
               {panel.title}
             </span>
+
+            {/* Show data drawer button for data panels */}
+            {!isContentPanel && queryResult && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                title="View underlying data"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDataDrawerPanelId(
+                    dataDrawerPanelId === panel.id ? null : panel.id,
+                  );
+                }}
+              >
+                <TableProperties className="h-3 w-3" />
+              </Button>
+            )}
+
             <Button
               variant="ghost"
               size="icon"
@@ -147,6 +202,11 @@ export function PanelContainer({
         )}
       </div>
 
+      {/* Drilldown breadcrumb */}
+      {panel.drilldownLevels && panel.drilldownLevels.length > 0 && (
+        <DrilldownBreadcrumb panelId={panel.id} />
+      )}
+
       {/* Content area */}
       <div className="relative flex-1 overflow-hidden p-2">
         {loading && (
@@ -154,8 +214,21 @@ export function PanelContainer({
             <Loader2 className="h-5 w-5 animate-spin text-primary" />
           </div>
         )}
-        {queryResult ? (
-          <ChartRenderer result={queryResult} config={panel.visualization} />
+
+        {isContentPanel ? (
+          <ChartRenderer
+            result={queryResult ?? { columns: [], rows: [], rowCount: 0, elapsed: 0 }}
+            config={panel.visualization}
+            panel={panel}
+            allResults={allResults}
+          />
+        ) : queryResult ? (
+          <ChartRenderer
+            result={queryResult}
+            config={panel.visualization}
+            panel={panel}
+            allResults={allResults}
+          />
         ) : panel.query.sql ? (
           <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
             Loading...
@@ -164,6 +237,23 @@ export function PanelContainer({
           <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
             Select this panel to write a query
           </div>
+        )}
+
+        {/* Data drawer overlay */}
+        <DrillDrawer
+          panelId={panel.id}
+          panelTitle={panel.title}
+          result={queryResult}
+          sql={panel.query.sql}
+          showQuery={panel.showQueryToConsumer}
+        />
+
+        {/* Record detail overlay */}
+        {queryResult && (
+          <RecordDetail
+            result={queryResult}
+            fields={panel.recordFields}
+          />
         )}
       </div>
     </div>
