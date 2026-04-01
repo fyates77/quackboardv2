@@ -7,7 +7,10 @@ import type {
   DashboardFilter,
   DashboardParameter,
   DashboardTab,
+  DashboardTheme,
+  SiteHeader,
   Panel,
+  PanelStyle,
   LayoutItem,
   VisualizationConfig,
 } from "@/types/dashboard";
@@ -74,8 +77,27 @@ interface DashboardState {
   // Tabs
   setTabs: (dashboardId: string, tabs: DashboardTab[]) => void;
 
+  // Panel style
+  updatePanelStyle: (
+    dashboardId: string,
+    panelId: string,
+    style: Partial<PanelStyle>,
+  ) => void;
+
+  // Dashboard theme
+  updateDashboardTheme: (
+    dashboardId: string,
+    theme: Partial<DashboardTheme>,
+  ) => void;
+
   // Layout mode
   setLayoutMode: (dashboardId: string, mode: "grid" | "scroll") => void;
+
+  // Site header
+  updateSiteHeader: (dashboardId: string, header: Partial<SiteHeader>) => void;
+
+  // Create dashboard with pre-filled data (for templates)
+  createDashboardWithData: (data: Omit<Dashboard, "id" | "createdAt" | "updatedAt">) => string;
 }
 
 export const useDashboardStore = create<DashboardState>()(
@@ -502,6 +524,42 @@ export const useDashboardStore = create<DashboardState>()(
           };
         }),
 
+      updatePanelStyle: (dashboardId, panelId, style) =>
+        set((state) => {
+          const dash = state.dashboards[dashboardId];
+          if (!dash) return state;
+          return {
+            dashboards: {
+              ...state.dashboards,
+              [dashboardId]: {
+                ...dash,
+                panels: dash.panels.map((p) =>
+                  p.id === panelId
+                    ? { ...p, style: { ...p.style, ...style } }
+                    : p,
+                ),
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          };
+        }),
+
+      updateDashboardTheme: (dashboardId, theme) =>
+        set((state) => {
+          const dash = state.dashboards[dashboardId];
+          if (!dash) return state;
+          return {
+            dashboards: {
+              ...state.dashboards,
+              [dashboardId]: {
+                ...dash,
+                theme: { ...dash.theme, ...theme },
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          };
+        }),
+
       setTabs: (dashboardId, tabs) =>
         set((state) => {
           const dash = state.dashboards[dashboardId];
@@ -533,6 +591,37 @@ export const useDashboardStore = create<DashboardState>()(
             },
           };
         }),
+
+      updateSiteHeader: (dashboardId, header) =>
+        set((state) => {
+          const dash = state.dashboards[dashboardId];
+          if (!dash) return state;
+          return {
+            dashboards: {
+              ...state.dashboards,
+              [dashboardId]: {
+                ...dash,
+                siteHeader: { ...dash.siteHeader, ...header },
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          };
+        }),
+
+      createDashboardWithData: (data) => {
+        const id = createId();
+        const now = new Date().toISOString();
+        const dashboard: Dashboard = {
+          ...data,
+          id,
+          createdAt: now,
+          updatedAt: now,
+        };
+        set((state) => ({
+          dashboards: { ...state.dashboards, [id]: dashboard },
+        }));
+        return id;
+      },
     }),
     {
       name: "quackboard-dashboards",

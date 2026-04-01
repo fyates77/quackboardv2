@@ -6,10 +6,19 @@ import { KpiCard } from "./kpi-card";
 import { DataTable } from "./data-table";
 import { FunnelChart } from "./funnel-chart";
 import { TreemapChart } from "./treemap-chart";
+import { NetworkChart } from "./network-chart";
+import { CustomVizPanel } from "./custom-viz-panel";
+import { GroupedTable } from "./grouped-table";
+import { CrosstabTable } from "./crosstab";
 import { MarkdownPanel } from "./markdown-panel";
 import { ImagePanel } from "./image-panel";
 import { EmbedPanel } from "./embed-panel";
 import { HtmlPanel } from "./html-panel";
+
+export interface ClickDatum {
+  column: string;
+  value: unknown;
+}
 
 interface ChartRendererProps {
   result: QueryResult;
@@ -18,9 +27,11 @@ interface ChartRendererProps {
   panel?: Panel;
   /** All panel results for template variable resolution in markdown/html */
   allResults?: Map<string, QueryResult>;
+  /** Callback when a datum is clicked in a chart */
+  onClickDatum?: (datum: ClickDatum) => void;
 }
 
-export function ChartRenderer({ result, config, panel, allResults }: ChartRendererProps) {
+export function ChartRenderer({ result, config, panel, allResults, onClickDatum }: ChartRendererProps) {
   // Content panel types don't need query results
   if (config.type === "markdown") {
     return (
@@ -56,6 +67,15 @@ export function ChartRenderer({ result, config, panel, allResults }: ChartRender
     );
   }
 
+  if (config.type === "custom") {
+    return (
+      <CustomVizPanel
+        result={result}
+        code={panel?.customVizCode ?? ""}
+      />
+    );
+  }
+
   // Data-driven panel types need results
   if (result.rows.length === 0) {
     return (
@@ -74,6 +94,7 @@ export function ChartRenderer({ result, config, panel, allResults }: ChartRender
     case "box":
     case "heatmap":
     case "waffle":
+    case "combo":
     case "tree":
     case "density":
     case "difference":
@@ -84,11 +105,13 @@ export function ChartRenderer({ result, config, panel, allResults }: ChartRender
           result={result}
           mapping={config.mapping}
           options={config.options}
+          annotations={panel?.annotations}
+          onClickDatum={onClickDatum}
         />
       );
 
     case "pie":
-      return <PieChart result={result} mapping={config.mapping} />;
+      return <PieChart result={result} mapping={config.mapping} onClickDatum={onClickDatum} />;
 
     case "funnel":
       return (
@@ -96,6 +119,7 @@ export function ChartRenderer({ result, config, panel, allResults }: ChartRender
           result={result}
           mapping={config.mapping}
           options={config.options}
+          onClickDatum={onClickDatum}
         />
       );
 
@@ -105,6 +129,17 @@ export function ChartRenderer({ result, config, panel, allResults }: ChartRender
           result={result}
           mapping={config.mapping}
           options={config.options}
+          onClickDatum={onClickDatum}
+        />
+      );
+
+    case "network":
+      return (
+        <NetworkChart
+          result={result}
+          mapping={config.mapping}
+          options={config.options}
+          onClickDatum={onClickDatum}
         />
       );
 
@@ -118,7 +153,13 @@ export function ChartRenderer({ result, config, panel, allResults }: ChartRender
       );
 
     case "table":
-      return <DataTable result={result} options={config.options} />;
+      return <DataTable result={result} options={config.options} onClickDatum={onClickDatum} />;
+
+    case "grouped-table":
+      return <GroupedTable result={result} options={config.options} onClickDatum={onClickDatum} />;
+
+    case "crosstab":
+      return <CrosstabTable result={result} options={config.options} onClickDatum={onClickDatum} />;
 
     default:
       return (

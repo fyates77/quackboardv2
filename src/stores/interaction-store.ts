@@ -7,12 +7,27 @@ interface DrilldownEntry {
   label: string;
 }
 
+export interface CrossFilterEntry {
+  sourcePanelId: string;
+  column: string;
+  value: string | number;
+}
+
 interface InteractionState {
   // Drilldown: panelId -> stack of breadcrumb entries
   drilldownStacks: Record<string, DrilldownEntry[]>;
   pushDrilldown: (panelId: string, entry: DrilldownEntry) => void;
   popDrilldownTo: (panelId: string, level: number) => void;
   resetDrilldown: (panelId: string) => void;
+
+  // Cross-filters: keyed by "panelId:column" for uniqueness
+  crossFilters: Record<string, CrossFilterEntry>;
+  setCrossFilter: (
+    panelId: string,
+    column: string,
+    value: string | number | null,
+  ) => void;
+  clearCrossFilters: (panelId?: string) => void;
 
   // Parameters: paramName -> current value
   parameterValues: Record<string, string | number | boolean>;
@@ -69,6 +84,41 @@ export const useInteractionStore = create<InteractionState>()((set) => ({
         [panelId]: [],
       },
     })),
+
+  // Cross-filters
+  crossFilters: {},
+
+  setCrossFilter: (panelId, column, value) =>
+    set((state) => {
+      const key = `${panelId}:${column}`;
+      if (value === null) {
+        // Remove this cross-filter (toggle off)
+        const { [key]: _, ...rest } = state.crossFilters;
+        return { crossFilters: rest };
+      }
+      const existing = state.crossFilters[key];
+      // Toggle: if same value clicked again, remove the filter
+      if (existing && existing.value === value) {
+        const { [key]: _, ...rest } = state.crossFilters;
+        return { crossFilters: rest };
+      }
+      return {
+        crossFilters: {
+          ...state.crossFilters,
+          [key]: { sourcePanelId: panelId, column, value },
+        },
+      };
+    }),
+
+  clearCrossFilters: (panelId) =>
+    set((state) => {
+      if (!panelId) return { crossFilters: {} };
+      const filtered: Record<string, CrossFilterEntry> = {};
+      for (const [key, entry] of Object.entries(state.crossFilters)) {
+        if (entry.sourcePanelId !== panelId) filtered[key] = entry;
+      }
+      return { crossFilters: filtered };
+    }),
 
   // Parameters
   parameterValues: {},

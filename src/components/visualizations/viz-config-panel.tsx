@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   BarChart3,
   LineChart,
@@ -16,10 +17,16 @@ import {
   Workflow,
   Funnel,
   LayoutDashboard,
+  Network,
   FileText,
   ImageIcon,
   Globe,
   Code2,
+  TableProperties,
+  LayoutList,
+  Plus,
+  Trash2,
+  GripVertical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +43,9 @@ import type {
   VisualizationConfig,
   ColumnMapping,
   VisualizationOptions,
+  ThresholdRule,
+  GroupedTableColumn,
+  ColumnFormat,
 } from "@/types/dashboard";
 
 /* ─── Props ──────────────────────────────────────────────────── */
@@ -65,8 +75,13 @@ const VIZ_TYPES: { type: VisualizationType; label: string; icon: typeof BarChart
   { type: "flow", label: "Flow", icon: Workflow },
   { type: "funnel", label: "Funnel", icon: Funnel },
   { type: "treemap", label: "Treemap", icon: LayoutDashboard },
+  { type: "network", label: "Network", icon: Network },
+  { type: "custom", label: "Custom", icon: Code2 },
+  { type: "combo", label: "Combo", icon: BarChart3 },
   { type: "pie", label: "Pie", icon: PieChart },
   { type: "table", label: "Table", icon: Table2 },
+  { type: "grouped-table", label: "Grouped", icon: LayoutList },
+  { type: "crosstab", label: "Crosstab", icon: TableProperties },
   { type: "kpi", label: "KPI", icon: Hash },
   { type: "markdown", label: "Text", icon: FileText },
   { type: "image", label: "Image", icon: ImageIcon },
@@ -77,11 +92,11 @@ const VIZ_TYPES: { type: VisualizationType; label: string; icon: typeof BarChart
 const PLOT_TYPES = new Set<VisualizationType>([
   "bar", "line", "area", "scatter",
   "histogram", "box", "heatmap", "waffle",
-  "tree", "density", "difference", "flow",
+  "combo", "tree", "density", "difference", "flow",
 ]);
 
 const XY_TYPES = new Set<VisualizationType>([
-  "bar", "line", "area", "scatter", "waffle",
+  "bar", "line", "area", "scatter", "waffle", "combo",
 ]);
 
 /* ─── Main Component ─────────────────────────────────────────── */
@@ -364,6 +379,30 @@ export function VizConfigPanel({
             </>
           )}
 
+          {/* Network: source + target + optional weight */}
+          {t === "network" && (
+            <>
+              <ColumnSelect
+                label="Source"
+                value={mapping.source}
+                columns={columns}
+                onChange={(source) => updateMapping({ source })}
+              />
+              <ColumnSelect
+                label="Target"
+                value={mapping.target}
+                columns={columns}
+                onChange={(target) => updateMapping({ target })}
+              />
+              <ColumnSelect
+                label="Weight (optional)"
+                value={mapping.value}
+                columns={columns}
+                onChange={(value) => updateMapping({ value })}
+              />
+            </>
+          )}
+
           {/* Pie */}
           {t === "pie" && (
             <>
@@ -426,6 +465,108 @@ export function VizConfigPanel({
                 </div>
               </div>
             </>
+          )}
+
+          {/* Grouped table: column role/format editor */}
+          {t === "grouped-table" && (
+            <GroupedTableEditor
+              columns={columns}
+              value={options.groupedTableColumns ?? []}
+              onChange={(cols) => updateOptions({ groupedTableColumns: cols })}
+            />
+          )}
+
+          {/* Crosstab: row dim / col dim / measure mapping */}
+          {t === "crosstab" && (
+            <>
+              <ColumnSelect
+                label="Row Dimension"
+                value={options.crosstabRowDim}
+                columns={columns}
+                onChange={(v) => updateOptions({ crosstabRowDim: v })}
+              />
+              <ColumnSelect
+                label="Column Dimension"
+                value={options.crosstabColDim}
+                columns={columns}
+                onChange={(v) => updateOptions({ crosstabColDim: v })}
+              />
+              <ColumnSelect
+                label="Measure Value"
+                value={options.crosstabMeasure}
+                columns={columns}
+                onChange={(v) => updateOptions({ crosstabMeasure: v })}
+              />
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Aggregation</label>
+                <div className="flex flex-wrap gap-1">
+                  {(["sum", "avg", "count", "min", "max"] as const).map((fn) => (
+                    <Button
+                      key={fn}
+                      variant={(options.crosstabAggregation ?? "sum") === fn ? "default" : "outline"}
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => updateOptions({ crosstabAggregation: fn })}
+                    >
+                      {fn}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Number format (KPI + table) */}
+          {(t === "kpi" || t === "table") && (
+            <div className="space-y-2">
+              <div className="text-xs font-medium text-muted-foreground">
+                Number Format
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {(["auto", "compact", "currency", "percent", "integer"] as const).map((fmt) => (
+                  <Button
+                    key={fmt}
+                    variant={(options.numberFormat ?? "auto") === fmt ? "default" : "outline"}
+                    size="sm"
+                    className="text-xs capitalize"
+                    onClick={() => updateOptions({ numberFormat: fmt === "auto" ? undefined : fmt })}
+                  >
+                    {fmt === "compact" ? "1.2M" : fmt === "currency" ? "$1,234" : fmt === "percent" ? "45%" : fmt === "integer" ? "1,234" : "Auto"}
+                  </Button>
+                ))}
+              </div>
+              {options.numberFormat === "currency" && (
+                <div className="space-y-1">
+                  <label className="text-[10px] text-muted-foreground">Currency</label>
+                  <input
+                    className="w-full rounded border bg-background px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-ring"
+                    placeholder="USD"
+                    value={options.currencyCode ?? ""}
+                    onChange={(e) => updateOptions({ currencyCode: e.target.value || undefined })}
+                  />
+                </div>
+              )}
+              <div className="space-y-1">
+                <label className="text-[10px] text-muted-foreground">Decimal places</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={6}
+                  className="w-full rounded border bg-background px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-ring"
+                  placeholder="Auto"
+                  value={options.decimals ?? ""}
+                  onChange={(e) => updateOptions({ decimals: e.target.value ? Number(e.target.value) : undefined })}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Threshold rules (KPI) */}
+          {t === "kpi" && (
+            <ThresholdRulesEditor
+              rules={options.thresholdRules}
+              onChange={(rules) => updateOptions({ thresholdRules: rules })}
+            />
           )}
         </div>
       )}
@@ -644,6 +785,62 @@ export function VizConfigPanel({
                 {tiling}
               </Button>
             ))}
+          </div>
+        </div>
+      )}
+
+      {t === "network" && columns.length > 0 && (
+        <div className="space-y-3">
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={options.networkShowLabels !== false}
+              onChange={(e) => updateOptions({ networkShowLabels: e.target.checked })}
+              className="rounded"
+            />
+            Show node labels
+          </label>
+          <div>
+            <label className="mb-1 flex items-center justify-between text-[10px] text-muted-foreground">
+              <span>Node radius</span>
+              <span>{options.networkNodeRadius ?? 6}px</span>
+            </label>
+            <input
+              type="range"
+              min={3}
+              max={20}
+              value={options.networkNodeRadius ?? 6}
+              onChange={(e) => updateOptions({ networkNodeRadius: Number(e.target.value) })}
+              className="w-full"
+            />
+          </div>
+          <div>
+            <label className="mb-1 flex items-center justify-between text-[10px] text-muted-foreground">
+              <span>Link distance</span>
+              <span>{options.networkLinkDistance ?? 80}px</span>
+            </label>
+            <input
+              type="range"
+              min={20}
+              max={300}
+              value={options.networkLinkDistance ?? 80}
+              onChange={(e) => updateOptions({ networkLinkDistance: Number(e.target.value) })}
+              className="w-full"
+            />
+          </div>
+          <div>
+            <label className="mb-1 flex items-center justify-between text-[10px] text-muted-foreground">
+              <span>Repulsion</span>
+              <span>{Math.abs(options.networkCharge ?? 200)}</span>
+            </label>
+            <input
+              type="range"
+              min={50}
+              max={600}
+              value={Math.abs(options.networkCharge ?? 200)}
+              onChange={(e) => updateOptions({ networkCharge: -Number(e.target.value) })}
+              className="w-full"
+            />
           </div>
         </div>
       )}
@@ -1034,6 +1231,459 @@ export function VizConfigPanel({
             </>
           )}
         </CollapsibleSection>
+      )}
+
+      {/* ═══ Grouped Table options ═══ */}
+      {t === "grouped-table" && (
+        <CollapsibleSection title="Table Options">
+          <div className="space-y-2">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Subtotals</label>
+              <div className="flex flex-wrap gap-1">
+                {(["none", "sql-rollup", "computed"] as const).map((m) => (
+                  <Button
+                    key={m}
+                    variant={(options.groupedTableSubtotals ?? "none") === m ? "default" : "outline"}
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => updateOptions({ groupedTableSubtotals: m === "none" ? undefined : m })}
+                  >
+                    {m === "none" ? "None" : m === "sql-rollup" ? "SQL ROLLUP" : "Computed"}
+                  </Button>
+                ))}
+              </div>
+              {options.groupedTableSubtotals === "sql-rollup" && (
+                <p className="text-[10px] text-muted-foreground">
+                  Use GROUP BY ROLLUP(…) in your SQL. Rows with null dimension values are styled as subtotals.
+                </p>
+              )}
+            </div>
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={options.groupedTableShowGrandTotal ?? false}
+                onChange={(e) => updateOptions({ groupedTableShowGrandTotal: e.target.checked || undefined })}
+              />
+              Show grand total
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={options.groupedTableStriped ?? true}
+                onChange={(e) => updateOptions({ groupedTableStriped: e.target.checked })}
+              />
+              Zebra striping
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={options.groupedTableCompact ?? false}
+                onChange={(e) => updateOptions({ groupedTableCompact: e.target.checked || undefined })}
+              />
+              Compact rows
+            </label>
+          </div>
+        </CollapsibleSection>
+      )}
+
+      {/* ═══ Crosstab options ═══ */}
+      {t === "crosstab" && (
+        <CollapsibleSection title="Crosstab Options">
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={options.crosstabShowRowTotals ?? false}
+                onChange={(e) => updateOptions({ crosstabShowRowTotals: e.target.checked || undefined })}
+              />
+              Show row totals
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={options.crosstabShowColTotals ?? false}
+                onChange={(e) => updateOptions({ crosstabShowColTotals: e.target.checked || undefined })}
+              />
+              Show column totals
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={options.crosstabColorScale ?? false}
+                onChange={(e) => updateOptions({ crosstabColorScale: e.target.checked || undefined })}
+              />
+              Color scale (heat map)
+            </label>
+            {options.crosstabColorScale && (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] text-muted-foreground">Min color</label>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="color"
+                      className="h-6 w-10 cursor-pointer rounded border"
+                      value={options.crosstabColorMin ?? "#ffffff"}
+                      onChange={(e) => updateOptions({ crosstabColorMin: e.target.value })}
+                    />
+                    <input
+                      className="flex-1 rounded border bg-background px-1.5 py-0.5 font-mono text-[10px] outline-none"
+                      value={options.crosstabColorMin ?? "#ffffff"}
+                      onChange={(e) => updateOptions({ crosstabColorMin: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] text-muted-foreground">Max color</label>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="color"
+                      className="h-6 w-10 cursor-pointer rounded border"
+                      value={options.crosstabColorMax ?? "#2563eb"}
+                      onChange={(e) => updateOptions({ crosstabColorMax: e.target.value })}
+                    />
+                    <input
+                      className="flex-1 rounded border bg-background px-1.5 py-0.5 font-mono text-[10px] outline-none"
+                      value={options.crosstabColorMax ?? "#2563eb"}
+                      onChange={(e) => updateOptions({ crosstabColorMax: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </CollapsibleSection>
+      )}
+    </div>
+  );
+}
+
+/* ── Threshold Rules Editor ──────────────────────── */
+
+const OPERATORS: { value: ThresholdRule["operator"]; label: string }[] = [
+  { value: "gt", label: ">" },
+  { value: "gte", label: ">=" },
+  { value: "lt", label: "<" },
+  { value: "lte", label: "<=" },
+  { value: "between", label: "between" },
+];
+
+function ThresholdRulesEditor({
+  rules,
+  onChange,
+}: {
+  rules?: ThresholdRule[];
+  onChange: (rules: ThresholdRule[] | undefined) => void;
+}) {
+  const items = rules ?? [];
+
+  const update = (index: number, patch: Partial<ThresholdRule>) => {
+    const next = items.map((r, i) => (i === index ? { ...r, ...patch } : r));
+    onChange(next);
+  };
+
+  const remove = (index: number) => {
+    const next = items.filter((_, i) => i !== index);
+    onChange(next.length > 0 ? next : undefined);
+  };
+
+  const add = () => {
+    onChange([
+      ...items,
+      { operator: "gt", value: 0, color: "#16a34a", bgColor: "#dcfce7" },
+    ]);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="text-xs font-medium text-muted-foreground">
+        Threshold Rules
+      </div>
+      {items.map((rule, i) => (
+        <div key={i} className="space-y-1 rounded border border-border/40 p-2">
+          <div className="flex items-center gap-1">
+            <select
+              className="w-20 rounded border bg-background px-1 py-1 text-xs outline-none"
+              value={rule.operator}
+              onChange={(e) =>
+                update(i, { operator: e.target.value as ThresholdRule["operator"] })
+              }
+            >
+              {OPERATORS.map((op) => (
+                <option key={op.value} value={op.value}>
+                  {op.label}
+                </option>
+              ))}
+            </select>
+            <input
+              type="number"
+              className="w-16 rounded border bg-background px-1.5 py-1 text-xs outline-none"
+              value={rule.value}
+              onChange={(e) => update(i, { value: Number(e.target.value) })}
+            />
+            {rule.operator === "between" && (
+              <>
+                <span className="text-[10px] text-muted-foreground">and</span>
+                <input
+                  type="number"
+                  className="w-16 rounded border bg-background px-1.5 py-1 text-xs outline-none"
+                  value={rule.value2 ?? 0}
+                  onChange={(e) => update(i, { value2: Number(e.target.value) })}
+                />
+              </>
+            )}
+            <button
+              className="ml-auto text-xs text-muted-foreground hover:text-destructive"
+              onClick={() => remove(i)}
+            >
+              ×
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-muted-foreground">Text</span>
+              <input
+                type="color"
+                value={rule.color}
+                onChange={(e) => update(i, { color: e.target.value })}
+                className="h-5 w-5 cursor-pointer rounded border border-border/40"
+              />
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-muted-foreground">Bg</span>
+              <input
+                type="color"
+                value={rule.bgColor ?? "#ffffff"}
+                onChange={(e) => update(i, { bgColor: e.target.value })}
+                className="h-5 w-5 cursor-pointer rounded border border-border/40"
+              />
+            </div>
+            <input
+              className="flex-1 rounded border bg-background px-1.5 py-0.5 text-[10px] outline-none"
+              placeholder="Label (optional)"
+              value={rule.label ?? ""}
+              onChange={(e) => update(i, { label: e.target.value || undefined })}
+            />
+          </div>
+        </div>
+      ))}
+      <button
+        className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+        onClick={add}
+      >
+        + Add threshold rule
+      </button>
+    </div>
+  );
+}
+
+/* ── Grouped Table Column Editor ─────────────────── */
+
+function ColumnFormatEditor({
+  fmt,
+  onChange,
+}: {
+  fmt: ColumnFormat | undefined;
+  onChange: (f: ColumnFormat | undefined) => void;
+}) {
+  const f = fmt ?? {};
+  const upd = (patch: Partial<ColumnFormat>) => onChange({ ...f, ...patch });
+
+  return (
+    <div className="space-y-2 rounded border border-border/30 bg-muted/20 p-2">
+      <div className="grid grid-cols-2 gap-1.5">
+        <div className="space-y-0.5">
+          <label className="text-[10px] text-muted-foreground">Header label</label>
+          <input
+            className="w-full rounded border bg-background px-1.5 py-0.5 text-xs outline-none focus:ring-1 focus:ring-ring"
+            placeholder="(column name)"
+            value={f.label ?? ""}
+            onChange={(e) => upd({ label: e.target.value || undefined })}
+          />
+        </div>
+        <div className="space-y-0.5">
+          <label className="text-[10px] text-muted-foreground">Width</label>
+          <input
+            className="w-full rounded border bg-background px-1.5 py-0.5 text-xs outline-none focus:ring-1 focus:ring-ring"
+            placeholder="120px or 20%"
+            value={f.width ?? ""}
+            onChange={(e) => upd({ width: e.target.value || undefined })}
+          />
+        </div>
+      </div>
+      <div className="space-y-0.5">
+        <label className="text-[10px] text-muted-foreground">Number format</label>
+        <div className="flex flex-wrap gap-1">
+          {(["auto", "compact", "percent", "currency", "integer"] as const).map((fmt) => (
+            <Button
+              key={fmt}
+              variant={(f.numberFormat ?? "auto") === fmt ? "default" : "outline"}
+              size="sm"
+              className="h-5 px-1.5 text-[10px]"
+              onClick={() => upd({ numberFormat: fmt === "auto" ? undefined : fmt })}
+            >
+              {fmt === "compact" ? "1.2M" : fmt === "currency" ? "$" : fmt === "percent" ? "%" : fmt === "integer" ? "#" : "Auto"}
+            </Button>
+          ))}
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-1.5">
+        <div className="space-y-0.5">
+          <label className="text-[10px] text-muted-foreground">Align</label>
+          <div className="flex gap-0.5">
+            {(["left", "center", "right"] as const).map((a) => (
+              <Button
+                key={a}
+                variant={(f.align ?? "left") === a ? "default" : "outline"}
+                size="sm"
+                className="h-5 w-7 p-0 text-[10px]"
+                onClick={() => upd({ align: a })}
+              >
+                {a[0].toUpperCase()}
+              </Button>
+            ))}
+          </div>
+        </div>
+        <div className="space-y-0.5">
+          <label className="text-[10px] text-muted-foreground">Text color</label>
+          <input
+            type="color"
+            className="h-6 w-full cursor-pointer rounded border"
+            value={f.textColor ?? "#000000"}
+            onChange={(e) => upd({ textColor: e.target.value })}
+          />
+        </div>
+        <div className="space-y-0.5">
+          <label className="text-[10px] text-muted-foreground">Cell bg</label>
+          <input
+            type="color"
+            className="h-6 w-full cursor-pointer rounded border"
+            value={f.bgColor ?? "#ffffff"}
+            onChange={(e) => upd({ bgColor: e.target.value })}
+          />
+        </div>
+      </div>
+      <ThresholdRulesEditor
+        rules={f.thresholdRules}
+        onChange={(rules) => upd({ thresholdRules: rules })}
+      />
+    </div>
+  );
+}
+
+function GroupedTableEditor({
+  columns,
+  value,
+  onChange,
+}: {
+  columns: string[];
+  value: GroupedTableColumn[];
+  onChange: (cols: GroupedTableColumn[]) => void;
+}) {
+  const [expanded, setExpanded] = useState<number | null>(null);
+
+  const add = (col: string) => {
+    if (value.some((c) => c.column === col)) return;
+    onChange([...value, { column: col, role: "measure" }]);
+  };
+
+  const remove = (idx: number) => {
+    onChange(value.filter((_, i) => i !== idx));
+    if (expanded === idx) setExpanded(null);
+  };
+
+  const update = (idx: number, patch: Partial<GroupedTableColumn>) => {
+    onChange(value.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
+  };
+
+  const unusedCols = columns.filter((c) => !value.some((v) => v.column === c));
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <label className="text-xs font-medium text-muted-foreground">Column Configuration</label>
+        <span className="text-[10px] text-muted-foreground">{value.length} configured</span>
+      </div>
+
+      {value.length === 0 && (
+        <p className="text-[10px] text-muted-foreground italic">
+          Add columns below. Dimensions group rows; measures show values.
+        </p>
+      )}
+
+      {/* Configured columns list */}
+      {value.map((col, idx) => (
+        <div key={col.column} className="rounded border border-border/40 bg-background">
+          <div className="flex items-center gap-1 px-2 py-1">
+            <GripVertical className="h-3 w-3 shrink-0 text-muted-foreground/50" />
+            <span className="flex-1 truncate text-xs font-medium">{col.column}</span>
+            {/* Role toggle */}
+            <Button
+              variant={col.role === "dimension" ? "default" : "outline"}
+              size="sm"
+              className="h-5 px-1.5 text-[10px]"
+              onClick={() => update(idx, { role: col.role === "dimension" ? "measure" : "dimension" })}
+              title="Toggle dimension/measure"
+            >
+              {col.role === "dimension" ? "Dim" : "Val"}
+            </Button>
+            {/* Format expand */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 w-5 p-0 text-[10px]"
+              onClick={() => setExpanded(expanded === idx ? null : idx)}
+              title="Column formatting"
+            >
+              {expanded === idx ? "▲" : "▼"}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 w-5 p-0 text-destructive hover:text-destructive"
+              onClick={() => remove(idx)}
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </div>
+          {expanded === idx && (
+            <div className="border-t border-border/30 p-2">
+              <ColumnFormatEditor
+                fmt={col.format}
+                onChange={(fmt) => update(idx, { format: fmt })}
+              />
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* Add column dropdown */}
+      {unusedCols.length > 0 && (
+        <div className="flex items-center gap-1">
+          <select
+            className="flex-1 rounded border bg-background px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-ring"
+            defaultValue=""
+            onChange={(e) => {
+              if (e.target.value) add(e.target.value);
+              e.target.value = "";
+            }}
+          >
+            <option value="">+ Add column…</option>
+            {unusedCols.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          {columns.length > 0 && value.length === 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 text-[10px]"
+              onClick={() => onChange(columns.map((c) => ({ column: c, role: "measure" as const })))}
+            >
+              <Plus className="mr-1 h-3 w-3" />
+              All
+            </Button>
+          )}
+        </div>
       )}
     </div>
   );

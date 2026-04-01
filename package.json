@@ -13,6 +13,8 @@
     "@tanstack/router-devtools": "^1.166.11",
     "@tanstack/router-plugin": "^1.167.9",
     "@testing-library/react": "^16.3.2",
+    "@types/d3": "^7.4.3",
+    "@types/d3-force": "^3.0.10",
     "@types/d3-hierarchy": "^3.1.7",
     "@types/d3-shape": "^3.1.8",
     "@types/react": "^19.2.14",
@@ -24,6 +26,7 @@
     "vitest": "^4.1.2"
   },
   "dependencies": {
+    "@codemirror/lang-javascript": "^6.2.5",
     "@codemirror/lang-sql": "^6.10.0",
     "@duckdb/duckdb-wasm": "^1.33.1-dev20.0",
     "@observablehq/plot": "^0.6.17",

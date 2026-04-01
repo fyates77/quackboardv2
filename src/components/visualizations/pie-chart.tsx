@@ -6,6 +6,7 @@ import type { ColumnMapping } from "@/types/dashboard";
 interface PieChartProps {
   result: QueryResult;
   mapping: ColumnMapping;
+  onClickDatum?: (datum: { column: string; value: unknown }) => void;
 }
 
 const COLORS = [
@@ -14,7 +15,7 @@ const COLORS = [
   "#9c755f", "#bab0ac",
 ];
 
-export function PieChart({ result, mapping }: PieChartProps) {
+export function PieChart({ result, mapping, onClickDatum }: PieChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -54,6 +55,12 @@ export function PieChart({ result, mapping }: PieChartProps) {
       path.setAttribute("fill", COLORS[i % COLORS.length]);
       path.setAttribute("stroke", "white");
       path.setAttribute("stroke-width", "2");
+      if (onClickDatum && category) {
+        path.style.cursor = "pointer";
+        path.addEventListener("click", () => {
+          onClickDatum({ column: category, value: data[i].label });
+        });
+      }
       svg.appendChild(path);
 
       // Label

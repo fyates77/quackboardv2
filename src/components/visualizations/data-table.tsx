@@ -5,9 +5,10 @@ import type { VisualizationOptions } from "@/types/dashboard";
 interface DataTableProps {
   result: QueryResult;
   options: VisualizationOptions;
+  onClickDatum?: (datum: { column: string; value: unknown }) => void;
 }
 
-export function DataTable({ result, options }: DataTableProps) {
+export function DataTable({ result, options, onClickDatum }: DataTableProps) {
   const pageSize = options.pageSize ?? 50;
   const [page, setPage] = useState(0);
   const totalPages = Math.ceil(result.rows.length / pageSize);
@@ -39,7 +40,15 @@ export function DataTable({ result, options }: DataTableProps) {
           </thead>
           <tbody>
             {pageRows.map((row, i) => (
-              <tr key={i} className="border-b last:border-0">
+              <tr
+                key={i}
+                className={`border-b last:border-0${onClickDatum ? " cursor-pointer hover:bg-muted/50" : ""}`}
+                onClick={() => {
+                  if (!onClickDatum || result.columns.length === 0) return;
+                  const col = result.columns[0];
+                  onClickDatum({ column: col.name, value: row[col.name] });
+                }}
+              >
                 {result.columns.map((col) => (
                   <td key={col.name} className="whitespace-nowrap px-2 py-1">
                     {row[col.name] == null ? (

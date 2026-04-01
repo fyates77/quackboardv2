@@ -6,7 +6,7 @@ import { useUIStore } from "@/stores/ui-store";
 import { useInteractionStore } from "@/stores/interaction-store";
 import { useEngine } from "@/engine/use-engine";
 import { useAutoRunPanels } from "@/hooks/use-auto-run-panels";
-import { applyFilters } from "@/lib/sql-template";
+import { applyFilters, applyCrossFilters, applyDrilldownFilters } from "@/lib/sql-template";
 import { queryCache } from "@/lib/query-cache";
 import { DashboardToolbar } from "@/components/dashboard/dashboard-toolbar";
 import { DashboardCanvas } from "@/components/dashboard/dashboard-canvas";
@@ -29,6 +29,11 @@ function DashboardEditorPage() {
   const { activePanelId, setActivePanelId } = useUIStore();
   const setSearchOpen = useInteractionStore((s) => s.setSearchOpen);
   const parameterValues = useInteractionStore((s) => s.parameterValues);
+  const crossFilters = useInteractionStore((s) => s.crossFilters);
+  const setCrossFilter = useInteractionStore((s) => s.setCrossFilter);
+  const clearCrossFilters = useInteractionStore((s) => s.clearCrossFilters);
+  const drilldownStacks = useInteractionStore((s) => s.drilldownStacks);
+  const pushDrilldown = useInteractionStore((s) => s.pushDrilldown);
   const activeTabId = useInteractionStore(
     (s) => s.activeTabs[dashboardId],
   );
@@ -149,6 +154,147 @@ function DashboardEditorPage() {
     };
   }, [filterKey, paramKey, engine, handleQueryResult, handleLoadingChange]);
 
+  // Re-run panels when cross-filters change
+  const crossFilterKey = JSON.stringify(crossFilters);
+  const prevCrossFilterKeyRef = useRef(crossFilterKey);
+  const crossFiltersRef = useRef(crossFilters);
+  crossFiltersRef.current = crossFilters;
+
+  useEffect(() => {
+    if (crossFilterKey === prevCrossFilterKeyRef.current) return;
+    prevCrossFilterKeyRef.current = crossFilterKey;
+
+    const panels = panelsRef.current;
+    const currentCrossFilters = Object.values(crossFiltersRef.current);
+    if (currentCrossFilters.length === 0 && panels.length === 0) return;
+
+    const currentFilterValues = filterValuesRef.current;
+    const currentFilters = filtersRef.current;
+    const currentParamValues = paramValuesRef.current;
+
+    // Re-run panels that have SQL and aren't the source of the cross-filter
+    const panelsToRerun = panels.filter(
+      (p) => p.query.sql.trim() && !currentCrossFilters.some((cf) => cf.sourcePanelId === p.id),
+    );
+
+    let cancelled = false;
+
+    (async () => {
+      for (const panel of panelsToRerun) {
+        if (cancelled) break;
+        let sql = panel.applyDashboardFilters !== false
+          ? applyFilters(panel.query.sql, currentFilters, currentFilterValues, currentParamValues)
+          : panel.query.sql;
+        sql = applyCrossFilters(sql, currentCrossFilters, panel.crossFilterListenColumns);
+
+        const cached = queryCache.get(sql);
+        if (cached) {
+          handleQueryResult(panel.id, cached);
+          continue;
+        }
+
+        handleLoadingChange(panel.id, true);
+        try {
+          const result = await engine.executeQuery(sql);
+          if (!cancelled) {
+            queryCache.set(sql, result);
+            handleQueryResult(panel.id, result);
+          }
+        } catch {
+          // Skip failures silently
+        } finally {
+          handleLoadingChange(panel.id, false);
+        }
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [crossFilterKey, engine, handleQueryResult, handleLoadingChange]);
+
+  // Re-run a panel when its drilldown stack changes
+  const drilldownKey = JSON.stringify(drilldownStacks);
+  const prevDrilldownKeyRef = useRef(drilldownKey);
+  const drilldownStacksRef = useRef(drilldownStacks);
+  drilldownStacksRef.current = drilldownStacks;
+
+  useEffect(() => {
+    if (drilldownKey === prevDrilldownKeyRef.current) return;
+    prevDrilldownKeyRef.current = drilldownKey;
+
+    const panels = panelsRef.current;
+    const currentFilterValues = filterValuesRef.current;
+    const currentFilters = filtersRef.current;
+    const currentParamValues = paramValuesRef.current;
+    const currentStacks = drilldownStacksRef.current;
+
+    let cancelled = false;
+
+    (async () => {
+      for (const panel of panels) {
+        if (cancelled) break;
+        const stack = currentStacks[panel.id];
+        if (!stack || stack.length === 0) continue;
+        if (!panel.query.sql.trim()) continue;
+
+        let sql = panel.applyDashboardFilters !== false
+          ? applyFilters(panel.query.sql, currentFilters, currentFilterValues, currentParamValues)
+          : panel.query.sql;
+        sql = applyDrilldownFilters(sql, stack);
+
+        const cached = queryCache.get(sql);
+        if (cached) {
+          handleQueryResult(panel.id, cached);
+          continue;
+        }
+
+        handleLoadingChange(panel.id, true);
+        try {
+          const result = await engine.executeQuery(sql);
+          if (!cancelled) {
+            queryCache.set(sql, result);
+            handleQueryResult(panel.id, result);
+          }
+        } catch {
+          // Skip failures silently
+        } finally {
+          handleLoadingChange(panel.id, false);
+        }
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [drilldownKey, engine, handleQueryResult, handleLoadingChange]);
+
+  // Handle chart click for cross-filtering and drilldown
+  const handleClickDatum = useCallback(
+    (panelId: string, datum: { column: string; value: unknown }) => {
+      const panel = dashboard?.panels.find((p) => p.id === panelId);
+      if (!panel) return;
+
+      // Drilldown takes priority
+      if (panel.drilldownLevels && panel.drilldownLevels.length > 0) {
+        const stack = drilldownStacks[panelId] ?? [];
+        const currentLevel = stack.length;
+        if (currentLevel < panel.drilldownLevels.length) {
+          const column = panel.drilldownLevels[currentLevel];
+          pushDrilldown(panelId, {
+            level: currentLevel,
+            column,
+            value: String(datum.value),
+            label: `${column}: ${datum.value}`,
+          });
+          return;
+        }
+      }
+
+      // Cross-filter
+      if (panel.crossFilterEnabled) {
+        setCrossFilter(panelId, datum.column, datum.value as string | number);
+      }
+    },
+    [dashboard?.panels, drilldownStacks, pushDrilldown, setCrossFilter],
+  );
+
   const handleDuplicatePanel = useCallback(
     (sourcePanelId: string, newPanelId: string) => {
       const sourceResult = queryResults.get(sourcePanelId);
@@ -222,8 +368,30 @@ function DashboardEditorPage() {
     return true;
   });
 
+  // Dashboard theme
+  const theme = dashboard.theme;
+  const themeStyle: Record<string, string> = {};
+  if (theme?.accentColor) {
+    themeStyle["--color-primary"] = theme.accentColor;
+  }
+  if (theme?.fontFamily) {
+    themeStyle["fontFamily"] = theme.fontFamily;
+  }
+  if (theme?.canvasBackground) {
+    themeStyle["background"] = theme.canvasBackground;
+  }
+
   return (
-    <div className="flex h-full flex-col">
+    <div
+      className="flex h-full flex-col"
+      id={`dashboard-${dashboardId}`}
+      style={themeStyle as React.CSSProperties}
+    >
+      {/* Scoped custom CSS */}
+      {theme?.customCSS && (
+        <style>{`#dashboard-${dashboardId} { ${theme.customCSS} }`}</style>
+      )}
+
       <DashboardToolbar dashboard={dashboard} />
 
       <FilterBar
@@ -232,6 +400,27 @@ function DashboardEditorPage() {
         filterValues={filterValues}
         onFilterChange={handleFilterChange}
       />
+
+      {/* Cross-filter indicator */}
+      {Object.keys(crossFilters).length > 0 && (
+        <div className="flex items-center gap-2 px-4 py-1.5 text-xs bg-primary/5 border-b border-border/30">
+          <span className="font-medium text-primary">Cross-filters:</span>
+          {Object.values(crossFilters).map((cf) => (
+            <span
+              key={`${cf.sourcePanelId}:${cf.column}`}
+              className="rounded-full bg-primary/10 px-2 py-0.5 text-primary"
+            >
+              {cf.column} = {String(cf.value)}
+            </span>
+          ))}
+          <button
+            className="ml-auto text-muted-foreground hover:text-foreground transition-colors underline"
+            onClick={() => clearCrossFilters()}
+          >
+            Clear all
+          </button>
+        </div>
+      )}
 
       <ParameterBar parameters={dashboard.parameters ?? []} />
 
@@ -266,13 +455,16 @@ function DashboardEditorPage() {
               onDuplicatePanel={handleDuplicatePanel}
               visiblePanelIds={visiblePanelIds}
               allResults={queryResults}
+              onClickDatum={handleClickDatum}
+              spacingMultiplier={theme?.spacingMultiplier}
+              layoutMode={dashboard.layoutMode}
             />
           )}
         </div>
 
         {/* Panel editor sidebar */}
         {activePanel && (
-          <div className="w-80 shrink-0">
+          <div className="w-96 shrink-0">
             <PanelEditor
               key={activePanel.id}
               dashboardId={dashboardId}
@@ -280,6 +472,7 @@ function DashboardEditorPage() {
               filters={dashboard.filters ?? []}
               filterValues={filterValues}
               parameterValues={parameterValues}
+              tabs={tabs}
               onQueryResult={handleQueryResult}
             />
           </div>

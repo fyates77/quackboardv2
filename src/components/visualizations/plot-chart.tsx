@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import * as Plot from "@observablehq/plot";
 import type { QueryResult } from "@/engine/types";
-import type { ColumnMapping, VisualizationOptions } from "@/types/dashboard";
+import type { ColumnMapping, VisualizationOptions, PanelAnnotation } from "@/types/dashboard";
 
 type PlotType =
   | "bar"
@@ -12,16 +12,26 @@ type PlotType =
   | "box"
   | "heatmap"
   | "waffle"
+  | "combo"
   | "tree"
   | "density"
   | "difference"
   | "flow";
+
+const COMBO_LINE_COLORS = ["#ef4444", "#8b5cf6", "#06b6d4", "#f59e0b", "#10b981"];
+
+interface ClickDatum {
+  column: string;
+  value: unknown;
+}
 
 interface PlotChartProps {
   type: PlotType;
   result: QueryResult;
   mapping: ColumnMapping;
   options: VisualizationOptions;
+  annotations?: PanelAnnotation[];
+  onClickDatum?: (datum: ClickDatum) => void;
 }
 
 /** Check whether the mapping has enough columns for this chart type. */
@@ -39,6 +49,8 @@ function hasRequiredMapping(type: PlotType, mapping: ColumnMapping): boolean {
       return !!mapping.x && !!mapping.y1 && !!mapping.y2;
     case "flow":
       return !!mapping.x1 && !!mapping.y1Flow && !!mapping.x2 && !!mapping.y2Flow;
+    case "combo":
+      return !!mapping.x && !!mapping.y;
     default:
       return !!mapping.x && !!mapping.y;
   }
@@ -61,8 +73,10 @@ function emptyHint(type: PlotType): string {
   }
 }
 
-export function PlotChart({ type, result, mapping, options }: PlotChartProps) {
+export function PlotChart({ type, result, mapping, options, annotations, onClickDatum }: PlotChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const onClickRef = useRef(onClickDatum);
+  onClickRef.current = onClickDatum;
 
   useEffect(() => {
     const el = containerRef.current;
@@ -78,7 +92,11 @@ export function PlotChart({ type, result, mapping, options }: PlotChartProps) {
     let yField: string | undefined;
     let colorField = color;
 
-    if (xyTypes.includes(type) && y) {
+    if (type === "combo" && y) {
+      // Combo: don't flatten into multi-series — handle in switch case
+      const yColumns = Array.isArray(y) ? y : [y];
+      yField = yColumns[0];
+    } else if (xyTypes.includes(type) && y) {
       const yColumns = Array.isArray(y) ? y : [y];
       if (yColumns.length > 1) {
         plotData = [];
@@ -364,6 +382,48 @@ export function PlotChart({ type, result, mapping, options }: PlotChartProps) {
           );
           break;
         }
+
+        case "combo": {
+          if (!x) break;
+          const yColumns = Array.isArray(mapping.y) ? mapping.y : mapping.y ? [mapping.y] : [];
+          if (yColumns.length === 0) break;
+
+          // First Y column: bars
+          marks.push(
+            Plot.barY(data, {
+              x,
+              y: yColumns[0],
+              fill: "steelblue",
+              fillOpacity: options.opacity ?? 0.7,
+              ...facet,
+            }),
+          );
+
+          // Remaining Y columns: lines with dots
+          for (let i = 1; i < yColumns.length; i++) {
+            const lineColor = COMBO_LINE_COLORS[(i - 1) % COMBO_LINE_COLORS.length];
+            marks.push(
+              Plot.lineY(data, {
+                x,
+                y: yColumns[i],
+                stroke: lineColor,
+                strokeWidth: options.strokeWidth ?? 2,
+                curve: options.curve ?? "linear",
+                ...facet,
+              }),
+            );
+            marks.push(
+              Plot.dot(data, {
+                x,
+                y: yColumns[i],
+                fill: lineColor,
+                r: 3,
+                ...facet,
+              }),
+            );
+          }
+          break;
+        }
       }
 
       // --- Tooltips (default on) ---
@@ -439,6 +499,56 @@ export function PlotChart({ type, result, mapping, options }: PlotChartProps) {
         }
       }
 
+      // --- Annotations ---
+      if (annotations && annotations.length > 0) {
+        for (const ann of annotations) {
+          if (ann.x !== undefined && ann.y !== undefined) {
+            // Point annotation: dot + text
+            marks.push(
+              Plot.dot([{ x: ann.x, y: ann.y }], {
+                x: "x",
+                y: "y",
+                fill: "#f59e0b",
+                r: 5,
+                stroke: "white",
+                strokeWidth: 1.5,
+              }),
+            );
+            marks.push(
+              Plot.text([{ text: ann.text, x: ann.x, y: ann.y }], {
+                x: "x",
+                y: "y",
+                text: "text",
+                dy: -12,
+                fill: "#f59e0b",
+                fontSize: 10,
+                fontWeight: "bold",
+              }),
+            );
+          } else if (ann.x !== undefined) {
+            // Vertical line annotation
+            marks.push(
+              Plot.ruleX([ann.x], {
+                stroke: "#f59e0b",
+                strokeWidth: 1.5,
+                strokeDasharray: "4,3",
+              }),
+            );
+            marks.push(
+              Plot.text([{ text: ann.text, value: ann.x }], {
+                x: "value",
+                text: "text",
+                frameAnchor: "top",
+                dy: 8,
+                fill: "#f59e0b",
+                fontSize: 10,
+                fontWeight: "bold",
+              }),
+            );
+          }
+        }
+      }
+
       // --- Plot options ---
       const plotOptions: Plot.PlotOptions = {
         marks,
@@ -497,6 +607,30 @@ export function PlotChart({ type, result, mapping, options }: PlotChartProps) {
 
       const svg = Plot.plot(plotOptions);
       el.replaceChildren(svg);
+
+      // Add click handler for cross-filtering / drilldown
+      if (onClickRef.current) {
+        svg.style.cursor = "pointer";
+        svg.addEventListener("click", (event: Event) => {
+          const cb = onClickRef.current;
+          if (!cb) return;
+          // Walk up from target to find a mark element with __data__
+          let target = event.target as Element | null;
+          while (target && target !== svg) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const d = (target as any).__data__;
+            if (d != null && typeof d === "object") {
+              // Determine the best column to use as the click value
+              const clickColumn = x ?? mapping.category ?? mapping.path;
+              if (clickColumn && d[clickColumn] !== undefined) {
+                cb({ column: clickColumn, value: d[clickColumn] });
+                return;
+              }
+            }
+            target = target.parentElement;
+          }
+        });
+      }
     };
 
     render();

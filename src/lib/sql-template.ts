@@ -60,3 +60,51 @@ export function applyFilters(
 
   return result;
 }
+
+/**
+ * Apply cross-filter WHERE clauses from chart click interactions.
+ * Wraps the query in a subquery with WHERE conditions for each active cross-filter.
+ */
+export function applyCrossFilters(
+  sql: string,
+  crossFilters: Array<{ column: string; value: string | number }>,
+  listenColumns?: string[],
+): string {
+  if (crossFilters.length === 0) return sql;
+
+  const conditions: string[] = [];
+  for (const cf of crossFilters) {
+    // If listenColumns is specified, only apply matching columns
+    if (listenColumns && listenColumns.length > 0 && !listenColumns.includes(cf.column)) {
+      continue;
+    }
+    const col = cf.column.replace(/"/g, '""');
+    if (typeof cf.value === "number") {
+      conditions.push(`"${col}" = ${cf.value}`);
+    } else {
+      const escaped = String(cf.value).replace(/'/g, "''");
+      conditions.push(`"${col}" = '${escaped}'`);
+    }
+  }
+
+  if (conditions.length === 0) return sql;
+  return `SELECT * FROM (${sql}) AS __crossfiltered WHERE ${conditions.join(" AND ")}`;
+}
+
+/**
+ * Apply drilldown WHERE clauses from the drilldown stack.
+ */
+export function applyDrilldownFilters(
+  sql: string,
+  drilldownStack: Array<{ column: string; value: string }>,
+): string {
+  if (drilldownStack.length === 0) return sql;
+
+  const conditions = drilldownStack.map((entry) => {
+    const col = entry.column.replace(/"/g, '""');
+    const val = entry.value.replace(/'/g, "''");
+    return `"${col}" = '${val}'`;
+  });
+
+  return `SELECT * FROM (${sql}) AS __drilled WHERE ${conditions.join(" AND ")}`;
+}

@@ -9,7 +9,7 @@ import { useDashboardStore } from "@/stores/dashboard-store";
 import { useContainerWidth } from "@/hooks/use-resize-observer";
 import { PanelContainer } from "./panel-container";
 import { PanelErrorBoundary } from "./panel-error-boundary";
-import type { LayoutItem } from "@/types/dashboard";
+import type { LayoutItem, Panel } from "@/types/dashboard";
 import type { QueryResult } from "@/engine/types";
 
 interface DashboardCanvasProps {
@@ -21,15 +21,30 @@ interface DashboardCanvasProps {
   visiblePanelIds?: Set<string> | null;
   /** All panel results for template variable resolution */
   allResults?: Map<string, QueryResult>;
+  /** Callback when a chart datum is clicked */
+  onClickDatum?: (panelId: string, datum: { column: string; value: unknown }) => void;
+  /** Theme spacing multiplier (default 1) */
+  spacingMultiplier?: number;
+  /** Layout mode: grid (default) or scroll */
+  layoutMode?: "grid" | "scroll";
+  /** Consumer view — disable editing interactions */
+  readOnly?: boolean;
+  /** Pre-filtered panels (pass from parent to avoid double filtering) */
+  filteredPanels?: Panel[];
 }
 
-const GRID_CONFIG = {
-  cols: 12,
-  rowHeight: 80,
-  margin: [12, 12] as const,
-  containerPadding: [0, 0] as const,
-  maxRows: Infinity,
-};
+const BASE_MARGIN = 12;
+
+function getGridConfig(spacingMultiplier = 1) {
+  const m = Math.round(BASE_MARGIN * spacingMultiplier);
+  return {
+    cols: 12,
+    rowHeight: 80,
+    margin: [m, m] as const,
+    containerPadding: [0, 0] as const,
+    maxRows: Infinity,
+  };
+}
 
 export function DashboardCanvas({
   dashboardId,
@@ -38,23 +53,30 @@ export function DashboardCanvas({
   onDuplicatePanel,
   visiblePanelIds,
   allResults,
+  onClickDatum,
+  spacingMultiplier,
+  layoutMode = "grid",
+  readOnly = false,
+  filteredPanels: filteredPanelsProp,
 }: DashboardCanvasProps) {
   const dashboard = useDashboardStore((s) => s.dashboards[dashboardId]);
   const updateLayout = useDashboardStore((s) => s.updateLayout);
   const [containerRef, containerWidth] = useContainerWidth();
 
+  const gridConfig = useMemo(() => getGridConfig(spacingMultiplier), [spacingMultiplier]);
+
   const layout: readonly RGLLayoutItem[] = useMemo(
-    () =>
-      dashboard?.layout.map((l) => ({
-        i: l.i,
-        x: l.x,
-        y: l.y,
-        w: l.w,
-        h: l.h,
-        minW: l.minW ?? 2,
-        minH: l.minH ?? 2,
-      })) ?? [],
-    [dashboard?.layout],
+    () => {
+      const panels = dashboard?.panels ?? [];
+      return (dashboard?.layout ?? []).map((l) => {
+        const panel = panels.find((p) => p.id === l.i);
+        if (panel?.fullWidth) {
+          return { i: l.i, x: 0, y: l.y, w: 12, h: l.h, minW: 2, minH: l.minH ?? 2, static: true };
+        }
+        return { i: l.i, x: l.x, y: l.y, w: l.w, h: l.h, minW: l.minW ?? 2, minH: l.minH ?? 2 };
+      });
+    },
+    [dashboard?.layout, dashboard?.panels],
   );
 
   const handleLayoutChange = useCallback(
@@ -75,20 +97,60 @@ export function DashboardCanvas({
 
   if (!dashboard) return null;
 
+  const filteredPanels = filteredPanelsProp ?? dashboard.panels.filter(
+    (p) => !visiblePanelIds || visiblePanelIds.has(p.id),
+  );
+
+  // Scroll layout: panels flow vertically, sorted by layout Y position
+  if (layoutMode === "scroll") {
+    const sortedPanels = [...filteredPanels].sort((a, b) => {
+      const la = layout.find((l) => l.i === a.id);
+      const lb = layout.find((l) => l.i === b.id);
+      return (la?.y ?? 0) - (lb?.y ?? 0);
+    });
+
+    return (
+      <div
+        ref={containerRef}
+        className="flex-1 flex flex-col"
+        style={{ gap: gridConfig.margin[1] }}
+      >
+        {sortedPanels.map((panel) => {
+          const li = layout.find((l) => l.i === panel.id);
+          const h = (li?.h ?? 3) * gridConfig.rowHeight;
+          return (
+            <div key={panel.id} style={{ minHeight: h }}>
+              <PanelErrorBoundary panelTitle={panel.title}>
+                <PanelContainer
+                  dashboardId={dashboardId}
+                  panel={panel}
+                  queryResult={queryResults.get(panel.id) ?? null}
+                  loading={loadingPanels.has(panel.id)}
+                  onDuplicate={onDuplicatePanel}
+                  allResults={allResults}
+                  onClickDatum={onClickDatum}
+                  readOnly={readOnly}
+                />
+              </PanelErrorBoundary>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <div ref={containerRef} className="flex-1">
       {containerWidth > 0 && (
         <GridLayout
           layout={layout}
           width={containerWidth}
-          gridConfig={GRID_CONFIG}
+          gridConfig={gridConfig}
           compactor={verticalCompactor}
-          dragConfig={{ handle: ".panel-drag-handle" }}
-          onLayoutChange={handleLayoutChange}
+          dragConfig={readOnly ? undefined : { handle: ".panel-drag-handle" }}
+          onLayoutChange={readOnly ? undefined : handleLayoutChange}
         >
-          {dashboard.panels
-            .filter((p) => !visiblePanelIds || visiblePanelIds.has(p.id))
-            .map((panel) => (
+          {filteredPanels.map((panel) => (
             <div key={panel.id}>
               <PanelErrorBoundary panelTitle={panel.title}>
                 <PanelContainer
@@ -98,6 +160,8 @@ export function DashboardCanvas({
                   loading={loadingPanels.has(panel.id)}
                   onDuplicate={onDuplicatePanel}
                   allResults={allResults}
+                  onClickDatum={onClickDatum}
+                  readOnly={readOnly}
                 />
               </PanelErrorBoundary>
             </div>

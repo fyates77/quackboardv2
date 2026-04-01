@@ -12,9 +12,10 @@ interface FunnelChartProps {
   result: QueryResult;
   mapping: ColumnMapping;
   options: VisualizationOptions;
+  onClickDatum?: (datum: { column: string; value: unknown }) => void;
 }
 
-export function FunnelChart({ result, mapping, options }: FunnelChartProps) {
+export function FunnelChart({ result, mapping, options, onClickDatum }: FunnelChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -71,6 +72,12 @@ export function FunnelChart({ result, mapping, options }: FunnelChartProps) {
       );
       path.setAttribute("fill", COLORS[i % COLORS.length]);
       path.setAttribute("opacity", "0.85");
+      if (onClickDatum && category) {
+        path.style.cursor = "pointer";
+        path.addEventListener("click", () => {
+          onClickDatum({ column: category, value: d.label });
+        });
+      }
       svg.appendChild(path);
 
       // Label

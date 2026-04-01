@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Plus, Copy, Trash2 } from "lucide-react";
+import { Plus, Copy, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -8,7 +9,9 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useDashboardStore } from "@/stores/dashboard-store";
+import { DASHBOARD_TEMPLATES } from "@/lib/dashboard-templates";
 
 export const Route = createFileRoute("/dashboards/")({
   component: DashboardListPage,
@@ -16,14 +19,18 @@ export const Route = createFileRoute("/dashboards/")({
 
 function DashboardListPage() {
   const navigate = useNavigate();
-  const { dashboards, createDashboard, duplicateDashboard, deleteDashboard } =
+  const { dashboards, createDashboardWithData, duplicateDashboard, deleteDashboard } =
     useDashboardStore();
   const dashList = Object.values(dashboards).sort((a, b) =>
     b.updatedAt.localeCompare(a.updatedAt),
   );
+  const [pickerOpen, setPickerOpen] = useState(false);
 
-  const handleCreate = () => {
-    const id = createDashboard("Untitled Dashboard");
+  const handleSelectTemplate = (templateId: string) => {
+    const template = DASHBOARD_TEMPLATES.find((t) => t.id === templateId);
+    if (!template) return;
+    const id = createDashboardWithData(template.data);
+    setPickerOpen(false);
     navigate({ to: "/dashboards/$dashboardId", params: { dashboardId: id } });
   };
 
@@ -36,11 +43,45 @@ function DashboardListPage() {
             Create and manage your SQL-powered dashboards
           </p>
         </div>
-        <Button onClick={handleCreate}>
+        <Button onClick={() => setPickerOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           New Dashboard
         </Button>
       </div>
+
+      {/* Template picker dialog */}
+      <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+        <DialogContent className="max-w-2xl">
+          <div className="p-4">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold">Choose a template</h2>
+                <p className="text-xs text-muted-foreground">Start from a blank canvas or pick a layout to customize.</p>
+              </div>
+              <button onClick={() => setPickerOpen(false)} className="text-muted-foreground hover:text-foreground transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {DASHBOARD_TEMPLATES.map((t) => (
+                <button
+                  key={t.id}
+                  className="flex flex-col items-start rounded-lg border border-border/50 p-4 text-left transition-all hover:border-primary/50 hover:bg-primary/5 hover:shadow-sm"
+                  onClick={() => handleSelectTemplate(t.id)}
+                >
+                  <span className="font-medium">{t.name}</span>
+                  <span className="mt-1 text-xs text-muted-foreground">{t.description}</span>
+                  {t.data.panels.length > 0 && (
+                    <span className="mt-2 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+                      {t.data.panels.length} panel{t.data.panels.length !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {dashList.length === 0 ? (
         <Card className="flex flex-col items-center justify-center py-12">
@@ -49,7 +90,7 @@ function DashboardListPage() {
             <p className="mt-1 text-sm text-muted-foreground">
               Create your first dashboard to get started
             </p>
-            <Button className="mt-4" onClick={handleCreate}>
+            <Button className="mt-4" onClick={() => setPickerOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Create Dashboard
             </Button>

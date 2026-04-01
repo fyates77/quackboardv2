@@ -20,6 +20,7 @@ interface TreemapChartProps {
   result: QueryResult;
   mapping: ColumnMapping;
   options: VisualizationOptions;
+  onClickDatum?: (datum: { column: string; value: unknown }) => void;
 }
 
 const TILING_FNS = {
@@ -29,7 +30,7 @@ const TILING_FNS = {
   dice: treemapDice,
 } as const;
 
-export function TreemapChart({ result, mapping, options }: TreemapChartProps) {
+export function TreemapChart({ result, mapping, options, onClickDatum }: TreemapChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -142,6 +143,13 @@ export function TreemapChart({ result, mapping, options }: TreemapChartProps) {
           const leafName = leaf.data.id.split(delimiter).pop() ?? leaf.data.id;
           title.textContent = `${leafName}: ${(leaf.value ?? 0).toLocaleString()}`;
           rect.appendChild(title);
+
+          if (onClickDatum && pathCol) {
+            rect.style.cursor = "pointer";
+            rect.addEventListener("click", () => {
+              onClickDatum({ column: pathCol, value: leaf.data.id });
+            });
+          }
 
           svg.appendChild(rect);
 
