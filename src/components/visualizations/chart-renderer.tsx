@@ -14,6 +14,7 @@ import { MarkdownPanel } from "./markdown-panel";
 import { ImagePanel } from "./image-panel";
 import { EmbedPanel } from "./embed-panel";
 import { HtmlPanel } from "./html-panel";
+import { NavBarPanel } from "./nav-bar-panel";
 
 export interface ClickDatum {
   column: string;
@@ -29,9 +30,11 @@ interface ChartRendererProps {
   allResults?: Map<string, QueryResult>;
   /** Callback when a datum is clicked in a chart */
   onClickDatum?: (datum: ClickDatum) => void;
+  /** Dashboard ID — required for nav-bar panels to read/write active tab */
+  dashboardId?: string;
 }
 
-export function ChartRenderer({ result, config, panel, allResults, onClickDatum }: ChartRendererProps) {
+export function ChartRenderer({ result, config, panel, allResults, onClickDatum, dashboardId }: ChartRendererProps) {
   // Content panel types don't need query results
   if (config.type === "markdown") {
     return (
@@ -63,6 +66,19 @@ export function ChartRenderer({ result, config, panel, allResults, onClickDatum 
       <HtmlPanel
         content={panel?.htmlContent ?? ""}
         panelResults={allResults}
+      />
+    );
+  }
+
+  if (config.type === "nav-bar") {
+    const navCfg = config.options.navBarConfig ?? {
+      orientation: "horizontal" as const,
+      items: [],
+    };
+    return (
+      <NavBarPanel
+        config={navCfg}
+        dashboardId={dashboardId ?? ""}
       />
     );
   }

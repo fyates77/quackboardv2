@@ -27,6 +27,9 @@ import {
   Plus,
   Trash2,
   GripVertical,
+  Navigation,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,7 +49,13 @@ import type {
   ThresholdRule,
   GroupedTableColumn,
   ColumnFormat,
+  NavBarConfig,
+  NavBarItem,
+  NavBarIcon,
+  NavBarItemType,
 } from "@/types/dashboard";
+import { useDashboardStore } from "@/stores/dashboard-store";
+import { createId } from "@/lib/id";
 
 /* ─── Props ──────────────────────────────────────────────────── */
 
@@ -56,6 +65,7 @@ interface VizConfigPanelProps {
   onChangeType: (type: VisualizationType) => void;
   onChangeMapping: (mapping: ColumnMapping) => void;
   onChangeOptions: (options: VisualizationOptions) => void;
+  dashboardId?: string;
 }
 
 /* ─── Constants ──────────────────────────────────────────────── */
@@ -87,6 +97,7 @@ const VIZ_TYPES: { type: VisualizationType; label: string; icon: typeof BarChart
   { type: "image", label: "Image", icon: ImageIcon },
   { type: "embed", label: "Embed", icon: Globe },
   { type: "html", label: "HTML", icon: Code2 },
+  { type: "nav-bar", label: "Nav Bar", icon: Navigation },
 ];
 
 const PLOT_TYPES = new Set<VisualizationType>([
@@ -107,6 +118,7 @@ export function VizConfigPanel({
   onChangeType,
   onChangeMapping,
   onChangeOptions,
+  dashboardId,
 }: VizConfigPanelProps) {
   const columns = result?.columns.map((c) => c.name) ?? [];
   const { mapping, options } = config;
@@ -1286,6 +1298,15 @@ export function VizConfigPanel({
         </CollapsibleSection>
       )}
 
+      {/* ═══ Nav Bar config ═══ */}
+      {t === "nav-bar" && (
+        <NavBarConfigEditor
+          value={options.navBarConfig ?? { orientation: "horizontal", items: [] }}
+          onChange={(cfg) => updateOptions({ navBarConfig: cfg })}
+          dashboardId={dashboardId}
+        />
+      )}
+
       {/* ═══ Crosstab options ═══ */}
       {t === "crosstab" && (
         <CollapsibleSection title="Crosstab Options">
@@ -1685,6 +1706,576 @@ function GroupedTableEditor({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── Nav Bar Config Editor ───────────────────────────── */
+
+const NAV_ICONS: NavBarIcon[] = [
+  "home", "bar-chart", "table", "settings", "star", "info", "file", "users",
+  "arrow-right", "layout-dashboard", "database", "layers", "globe", "mail",
+  "bell", "search", "bookmark", "tag", "folder", "calendar", "clock", "map",
+  "trending-up", "trending-down", "activity", "alert-triangle", "check-circle",
+  "x-circle", "link",
+];
+
+const ITEM_TYPES: { value: NavBarItemType; label: string }[] = [
+  { value: "tab", label: "Tab" },
+  { value: "url", label: "URL" },
+  { value: "label", label: "Label" },
+  { value: "divider", label: "Divider" },
+];
+
+function NavBarItemRow({
+  item,
+  tabs,
+  depth,
+  onChange,
+  onRemove,
+}: {
+  item: NavBarItem;
+  tabs: { id: string; label: string }[];
+  depth: number;
+  onChange: (item: NavBarItem) => void;
+  onRemove: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const upd = (patch: Partial<NavBarItem>) => onChange({ ...item, ...patch });
+
+  const addChild = () => {
+    const child: NavBarItem = { id: createId(), label: "New Item", type: "tab" };
+    upd({ children: [...(item.children ?? []), child] });
+  };
+
+  const updateChild = (idx: number, c: NavBarItem) => {
+    const children = (item.children ?? []).map((x, i) => (i === idx ? c : x));
+    upd({ children });
+  };
+
+  const removeChild = (idx: number) => {
+    upd({ children: (item.children ?? []).filter((_, i) => i !== idx) });
+  };
+
+  return (
+    <div className={depth > 0 ? "ml-4 border-l border-border/30 pl-3" : ""}>
+      <div className="flex items-center gap-1">
+        <GripVertical className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+
+        {/* Type */}
+        <select
+          className="w-16 rounded border bg-background px-1 py-0.5 text-xs outline-none"
+          value={item.type}
+          onChange={(e) => upd({ type: e.target.value as NavBarItemType })}
+        >
+          {ITEM_TYPES.map((t) => (
+            <option key={t.value} value={t.value}>{t.label}</option>
+          ))}
+        </select>
+
+        {/* Label */}
+        {item.type !== "divider" && (
+          <input
+            className="min-w-0 flex-1 rounded border bg-background px-1.5 py-0.5 text-xs outline-none focus:ring-1 focus:ring-ring"
+            placeholder="Label"
+            value={item.label}
+            onChange={(e) => upd({ label: e.target.value })}
+          />
+        )}
+
+        {/* Expand / collapse (for non-divider/label at depth 0) */}
+        {depth === 0 && item.type !== "divider" && item.type !== "label" && (
+          <button
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent"
+            onClick={() => setExpanded((v) => !v)}
+            title="Edit details / sub-items"
+          >
+            {expanded ? (
+              <ChevronDown className="h-3 w-3" />
+            ) : (
+              <ChevronRight className="h-3 w-3" />
+            )}
+          </button>
+        )}
+
+        <button
+          className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-destructive/20 hover:text-destructive"
+          onClick={onRemove}
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      </div>
+
+      {/* Expanded detail */}
+      {expanded && item.type !== "divider" && (
+        <div className="mt-1.5 space-y-1.5 rounded border border-border/30 bg-muted/20 p-2">
+          {/* Tab target */}
+          {item.type === "tab" && (
+            <div className="space-y-0.5">
+              <label className="text-[10px] text-muted-foreground">Tab</label>
+              {tabs.length > 0 ? (
+                <select
+                  className="w-full rounded border bg-background px-1.5 py-0.5 text-xs outline-none"
+                  value={item.tabId ?? ""}
+                  onChange={(e) => upd({ tabId: e.target.value || undefined })}
+                >
+                  <option value="">— select tab —</option>
+                  {tabs.map((tab) => (
+                    <option key={tab.id} value={tab.id}>{tab.label}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  className="w-full rounded border bg-background px-1.5 py-0.5 text-xs outline-none"
+                  placeholder="Tab ID"
+                  value={item.tabId ?? ""}
+                  onChange={(e) => upd({ tabId: e.target.value || undefined })}
+                />
+              )}
+              {tabs.length === 0 && (
+                <p className="text-[10px] text-muted-foreground">Add tabs in the Config tab first</p>
+              )}
+            </div>
+          )}
+
+          {/* URL target */}
+          {item.type === "url" && (
+            <>
+              <div className="space-y-0.5">
+                <label className="text-[10px] text-muted-foreground">URL</label>
+                <input
+                  className="w-full rounded border bg-background px-1.5 py-0.5 text-xs outline-none focus:ring-1 focus:ring-ring"
+                  placeholder="https://..."
+                  value={item.url ?? ""}
+                  onChange={(e) => upd({ url: e.target.value || undefined })}
+                />
+              </div>
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={item.openInNew ?? false}
+                  onChange={(e) => upd({ openInNew: e.target.checked || undefined })}
+                />
+                Open in new tab
+              </label>
+            </>
+          )}
+
+          {/* Icon */}
+          <div className="space-y-0.5">
+            <label className="text-[10px] text-muted-foreground">Icon</label>
+            <select
+              className="w-full rounded border bg-background px-1.5 py-0.5 text-xs outline-none"
+              value={item.icon ?? ""}
+              onChange={(e) => upd({ icon: (e.target.value as NavBarIcon) || undefined })}
+            >
+              <option value="">— none —</option>
+              {NAV_ICONS.map((icon) => (
+                <option key={icon} value={icon}>{icon}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Sub-items (only at depth 0) */}
+          {depth === 0 && (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-medium text-muted-foreground">
+                  Sub-items (dropdown)
+                </label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 text-[10px]"
+                  onClick={addChild}
+                >
+                  <Plus className="mr-0.5 h-3 w-3" />
+                  Add
+                </Button>
+              </div>
+              {(item.children ?? []).map((child, idx) => (
+                <NavBarItemRow
+                  key={child.id}
+                  item={child}
+                  tabs={tabs}
+                  depth={1}
+                  onChange={(c) => updateChild(idx, c)}
+                  onRemove={() => removeChild(idx)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NavBarConfigEditor({
+  value: cfg,
+  onChange,
+  dashboardId,
+}: {
+  value: NavBarConfig;
+  onChange: (cfg: NavBarConfig) => void;
+  dashboardId?: string;
+}) {
+  const dashboard = useDashboardStore((s) =>
+    dashboardId ? s.dashboards[dashboardId] : undefined,
+  );
+  const tabs = dashboard?.tabs ?? [];
+
+  const upd = (patch: Partial<NavBarConfig>) => onChange({ ...cfg, ...patch });
+
+  const addItem = () => {
+    const item: NavBarItem = { id: createId(), label: "New Item", type: "tab" };
+    upd({ items: [...cfg.items, item] });
+  };
+
+  const updateItem = (idx: number, item: NavBarItem) => {
+    upd({ items: cfg.items.map((x, i) => (i === idx ? item : x)) });
+  };
+
+  const removeItem = (idx: number) => {
+    upd({ items: cfg.items.filter((_, i) => i !== idx) });
+  };
+
+  const ITEM_STYLE_OPTS: NavBarConfig["itemStyle"][] = ["plain", "pill", "underline", "bordered"];
+  const ALIGN_OPTS: NavBarConfig["alignment"][] = ["left", "center", "right", "space-between"];
+  const WEIGHT_OPTS: NavBarConfig["fontWeight"][] = ["normal", "medium", "semibold", "bold"];
+
+  return (
+    <div className="space-y-3">
+      {/* ── Items ── */}
+      <CollapsibleSection title="Nav Items" defaultOpen>
+        <div className="space-y-1.5">
+          {cfg.items.map((item, idx) => (
+            <NavBarItemRow
+              key={item.id}
+              item={item}
+              tabs={tabs}
+              depth={0}
+              onChange={(updated) => updateItem(idx, updated)}
+              onRemove={() => removeItem(idx)}
+            />
+          ))}
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full h-7 text-xs"
+            onClick={addItem}
+          >
+            <Plus className="mr-1 h-3 w-3" />
+            Add Item
+          </Button>
+        </div>
+      </CollapsibleSection>
+
+      {/* ── Layout ── */}
+      <CollapsibleSection title="Layout">
+        <div className="space-y-2">
+          {/* Orientation */}
+          <div className="space-y-1">
+            <label className="text-[10px] text-muted-foreground">Orientation</label>
+            <div className="flex gap-1">
+              {(["horizontal", "vertical"] as const).map((o) => (
+                <Button
+                  key={o}
+                  variant={cfg.orientation === o ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1 text-xs h-7"
+                  onClick={() => upd({ orientation: o })}
+                >
+                  {o === "horizontal" ? "Horizontal" : "Vertical"}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* Alignment (horizontal only) */}
+          {cfg.orientation === "horizontal" && (
+            <div className="space-y-1">
+              <label className="text-[10px] text-muted-foreground">Alignment</label>
+              <div className="grid grid-cols-4 gap-1">
+                {ALIGN_OPTS.map((a) => (
+                  <Button
+                    key={a}
+                    variant={(cfg.alignment ?? "left") === a ? "default" : "outline"}
+                    size="sm"
+                    className="text-[10px] h-6 px-1"
+                    onClick={() => upd({ alignment: a })}
+                  >
+                    {a === "space-between" ? "spread" : a}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Brand */}
+          <div className="space-y-1">
+            <label className="text-[10px] text-muted-foreground">Brand label</label>
+            <input
+              className="w-full rounded border bg-background px-1.5 py-0.5 text-xs outline-none focus:ring-1 focus:ring-ring"
+              placeholder="My App"
+              value={cfg.brandLabel ?? ""}
+              onChange={(e) => upd({ brandLabel: e.target.value || undefined })}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] text-muted-foreground">Logo URL</label>
+            <input
+              className="w-full rounded border bg-background px-1.5 py-0.5 text-xs outline-none focus:ring-1 focus:ring-ring"
+              placeholder="https://..."
+              value={cfg.brandLogoUrl ?? ""}
+              onChange={(e) => upd({ brandLogoUrl: e.target.value || undefined })}
+            />
+          </div>
+          {(cfg.brandLogoUrl || cfg.brandLabel) && (
+            <div className="space-y-1">
+              <label className="text-[10px] text-muted-foreground">Logo size (px)</label>
+              <input
+                type="number"
+                className="w-full rounded border bg-background px-1.5 py-0.5 text-xs outline-none"
+                min={12} max={80}
+                value={cfg.brandLogoSize ?? 24}
+                onChange={(e) => upd({ brandLogoSize: Number(e.target.value) })}
+              />
+            </div>
+          )}
+
+          {/* Vertical collapsible */}
+          {cfg.orientation === "vertical" && (
+            <>
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={cfg.sectionCollapsible ?? false}
+                  onChange={(e) => upd({ sectionCollapsible: e.target.checked || undefined })}
+                />
+                Sections collapsible
+              </label>
+              {cfg.sectionCollapsible && (
+                <label className="flex items-center gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={cfg.sectionDefaultCollapsed ?? false}
+                    onChange={(e) => upd({ sectionDefaultCollapsed: e.target.checked || undefined })}
+                  />
+                  Start collapsed
+                </label>
+              )}
+              <div className="space-y-1">
+                <label className="text-[10px] text-muted-foreground">Child indent (px)</label>
+                <input
+                  type="number"
+                  className="w-full rounded border bg-background px-1.5 py-0.5 text-xs outline-none"
+                  min={0} max={48} step={4}
+                  value={cfg.childIndent ?? 16}
+                  onChange={(e) => upd({ childIndent: Number(e.target.value) })}
+                />
+              </div>
+            </>
+          )}
+        </div>
+      </CollapsibleSection>
+
+      {/* ── Style ── */}
+      <CollapsibleSection title="Style">
+        <div className="space-y-2">
+          {/* Item style */}
+          <div className="space-y-1">
+            <label className="text-[10px] text-muted-foreground">Item style</label>
+            <div className="grid grid-cols-4 gap-1">
+              {ITEM_STYLE_OPTS.map((s) => (
+                <Button
+                  key={s}
+                  variant={(cfg.itemStyle ?? "plain") === s ? "default" : "outline"}
+                  size="sm"
+                  className="text-[10px] h-6 px-1"
+                  onClick={() => upd({ itemStyle: s })}
+                >
+                  {s}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* Colors */}
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              ["background", "Background"],
+              ["textColor", "Text"],
+              ["activeTextColor", "Active text"],
+              ["activeBgColor", "Active bg"],
+              ["hoverBgColor", "Hover bg"],
+              ["dividerColor", "Divider"],
+            ] as const).map(([key, label]) => (
+              <div key={key} className="space-y-0.5">
+                <label className="text-[10px] text-muted-foreground">{label}</label>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="color"
+                    className="h-6 w-8 cursor-pointer rounded border"
+                    value={cfg[key] ?? "#ffffff"}
+                    onChange={(e) => upd({ [key]: e.target.value })}
+                  />
+                  <input
+                    className="min-w-0 flex-1 rounded border bg-background px-1 py-0.5 font-mono text-[10px] outline-none"
+                    value={cfg[key] ?? ""}
+                    placeholder="auto"
+                    onChange={(e) => upd({ [key]: e.target.value || undefined })}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Border/frame */}
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={cfg.showOuterBorder ?? false}
+              onChange={(e) => upd({ showOuterBorder: e.target.checked || undefined })}
+            />
+            Show outer border
+          </label>
+          {cfg.showOuterBorder && (
+            <div className="space-y-0.5">
+              <label className="text-[10px] text-muted-foreground">Border color</label>
+              <div className="flex items-center gap-1">
+                <input
+                  type="color"
+                  className="h-6 w-8 cursor-pointer rounded border"
+                  value={cfg.outerBorderColor ?? "#e2e8f0"}
+                  onChange={(e) => upd({ outerBorderColor: e.target.value })}
+                />
+                <input
+                  className="flex-1 rounded border bg-background px-1 py-0.5 font-mono text-[10px] outline-none"
+                  value={cfg.outerBorderColor ?? ""}
+                  onChange={(e) => upd({ outerBorderColor: e.target.value || undefined })}
+                />
+              </div>
+            </div>
+          )}
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={cfg.showDividers ?? false}
+              onChange={(e) => upd({ showDividers: e.target.checked || undefined })}
+            />
+            Show dividers between items
+          </label>
+        </div>
+      </CollapsibleSection>
+
+      {/* ── Typography ── */}
+      <CollapsibleSection title="Typography">
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="text-[10px] text-muted-foreground">Font size (px)</label>
+              <input
+                type="number"
+                className="w-full rounded border bg-background px-1.5 py-0.5 text-xs outline-none"
+                min={10} max={24}
+                value={cfg.fontSize ?? 13}
+                onChange={(e) => upd({ fontSize: Number(e.target.value) })}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-muted-foreground">Letter spacing (em)</label>
+              <input
+                type="number"
+                className="w-full rounded border bg-background px-1.5 py-0.5 text-xs outline-none"
+                min={0} max={0.3} step={0.01}
+                value={cfg.letterSpacing ?? 0}
+                onChange={(e) => upd({ letterSpacing: Number(e.target.value) || undefined })}
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] text-muted-foreground">Font weight</label>
+            <div className="grid grid-cols-4 gap-1">
+              {WEIGHT_OPTS.map((w) => (
+                <Button
+                  key={w}
+                  variant={(cfg.fontWeight ?? "normal") === w ? "default" : "outline"}
+                  size="sm"
+                  className="text-[10px] h-6 px-1"
+                  onClick={() => upd({ fontWeight: w })}
+                >
+                  {w}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={cfg.uppercase ?? false}
+              onChange={(e) => upd({ uppercase: e.target.checked || undefined })}
+            />
+            Uppercase labels
+          </label>
+        </div>
+      </CollapsibleSection>
+
+      {/* ── Spacing ── */}
+      <CollapsibleSection title="Spacing">
+        <div className="space-y-2">
+          {([
+            ["itemPaddingX", "Item padding X (px)", 0, 48, 12],
+            ["itemPaddingY", "Item padding Y (px)", 0, 32, 6],
+            ["gap", "Gap between items (px)", 0, 32, 2],
+            ["borderRadius", "Border radius (px)", 0, 24, 6],
+          ] as const).map(([key, label, min, max, def]) => (
+            <div key={key} className="flex items-center gap-2">
+              <label className="w-36 shrink-0 text-[10px] text-muted-foreground">{label}</label>
+              <input
+                type="range"
+                className="flex-1"
+                min={min} max={max}
+                value={cfg[key] ?? def}
+                onChange={(e) => upd({ [key]: Number(e.target.value) })}
+              />
+              <span className="w-6 text-right text-[10px] tabular-nums text-muted-foreground">
+                {cfg[key] ?? def}
+              </span>
+            </div>
+          ))}
+        </div>
+      </CollapsibleSection>
+
+      {/* ── Icons ── */}
+      <CollapsibleSection title="Icons">
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={cfg.showIcons ?? false}
+              onChange={(e) => upd({ showIcons: e.target.checked || undefined })}
+            />
+            Show icons next to labels
+          </label>
+          {cfg.showIcons && (
+            <div className="flex items-center gap-2">
+              <label className="w-24 shrink-0 text-[10px] text-muted-foreground">Icon size (px)</label>
+              <input
+                type="range"
+                className="flex-1"
+                min={10} max={24}
+                value={cfg.iconSize ?? 14}
+                onChange={(e) => upd({ iconSize: Number(e.target.value) })}
+              />
+              <span className="w-6 text-right text-[10px] tabular-nums text-muted-foreground">
+                {cfg.iconSize ?? 14}
+              </span>
+            </div>
+          )}
+        </div>
+      </CollapsibleSection>
     </div>
   );
 }

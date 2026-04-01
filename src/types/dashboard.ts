@@ -233,7 +233,123 @@ export type VisualizationType =
   | "markdown"
   | "image"
   | "embed"
-  | "html";
+  | "html"
+  | "nav-bar";
+
+// ─── Nav Bar Panel ─────────────────────────────────────────────────────────
+
+export type NavBarItemType = "tab" | "url" | "divider" | "label";
+
+export interface NavBarItem {
+  id: string;
+  label: string;
+  type: NavBarItemType;
+  /** Tab ID to activate (for type "tab") */
+  tabId?: string;
+  /** URL to navigate to (for type "url") */
+  url?: string;
+  /** Open URL in new tab */
+  openInNew?: boolean;
+  /** Lucide icon name from the supported set */
+  icon?: NavBarIcon;
+  /** Sub-items rendered as a dropdown (horizontal) or nested section (vertical) */
+  children?: NavBarItem[];
+}
+
+export type NavBarIcon =
+  | "home"
+  | "bar-chart"
+  | "table"
+  | "settings"
+  | "star"
+  | "info"
+  | "file"
+  | "users"
+  | "arrow-right"
+  | "layout-dashboard"
+  | "database"
+  | "layers"
+  | "globe"
+  | "mail"
+  | "bell"
+  | "search"
+  | "bookmark"
+  | "tag"
+  | "folder"
+  | "calendar"
+  | "clock"
+  | "map"
+  | "trending-up"
+  | "trending-down"
+  | "activity"
+  | "alert-triangle"
+  | "check-circle"
+  | "x-circle"
+  | "link";
+
+export interface NavBarConfig {
+  /** Render items in a horizontal row or vertical column */
+  orientation: "horizontal" | "vertical";
+  items: NavBarItem[];
+
+  // ── Brand slot (optional logo + text left of items) ──────────────
+  brandLabel?: string;
+  brandLogoUrl?: string;
+  brandLogoSize?: number;        // px, default 24
+
+  // ── Item visual style ─────────────────────────────────────────────
+  /** plain = no chrome; pill = filled rounded bg; underline = bottom border; bordered = outline border */
+  itemStyle?: "plain" | "pill" | "underline" | "bordered";
+
+  // ── Horizontal alignment ──────────────────────────────────────────
+  alignment?: "left" | "center" | "right" | "space-between";
+
+  // ── Colors ────────────────────────────────────────────────────────
+  /** Nav bar background (CSS color or gradient) */
+  background?: string;
+  /** Default item text color */
+  textColor?: string;
+  /** Active item text color */
+  activeTextColor?: string;
+  /** Active item background (pill/bordered styles) */
+  activeBgColor?: string;
+  /** Item hover background */
+  hoverBgColor?: string;
+  /** Divider / separator color */
+  dividerColor?: string;
+
+  // ── Typography ────────────────────────────────────────────────────
+  fontSize?: number;             // px, default 13
+  fontWeight?: "normal" | "medium" | "semibold" | "bold";
+  uppercase?: boolean;           // letter-spacing uppercase labels
+  letterSpacing?: number;        // em units (e.g. 0.08)
+
+  // ── Spacing ───────────────────────────────────────────────────────
+  itemPaddingX?: number;         // px, default 12
+  itemPaddingY?: number;         // px, default 6
+  gap?: number;                  // px gap between top-level items, default 2
+  /** Border radius in px for pill/bordered item styles */
+  borderRadius?: number;
+
+  // ── Outer frame ───────────────────────────────────────────────────
+  showOuterBorder?: boolean;
+  outerBorderColor?: string;
+  /** Vertical dividers between items (horizontal mode) */
+  showDividers?: boolean;
+
+  // ── Vertical sidebar specifics ────────────────────────────────────
+  /** Allow sections with children to collapse */
+  sectionCollapsible?: boolean;
+  /** Start sections collapsed */
+  sectionDefaultCollapsed?: boolean;
+  /** Indent child items by this many px */
+  childIndent?: number;          // default 16
+
+  // ── Icons ─────────────────────────────────────────────────────────
+  /** Show icons next to labels */
+  showIcons?: boolean;
+  iconSize?: number;             // px, default 14
+}
 
 /** Per-column display formatting for grouped-table and crosstab */
 export interface ColumnFormat {
@@ -424,4 +540,7 @@ export interface VisualizationOptions {
   crosstabShowColTotals?: boolean;
   /** Per-column format overrides keyed by col-dimension value */
   crosstabColumnFormats?: Record<string, ColumnFormat>;
+  // ─── Nav Bar ───────────────────────────────────────────────────────
+  /** Nav bar configuration (used when visualization type is "nav-bar") */
+  navBarConfig?: NavBarConfig;
 }

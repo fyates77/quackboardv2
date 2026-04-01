@@ -24,7 +24,7 @@ import type { Panel, PanelStyle } from "@/types/dashboard";
 import type { QueryResult } from "@/engine/types";
 
 /** Panel types that don't need a SQL query to render */
-const CONTENT_PANEL_TYPES = new Set(["markdown", "image", "embed", "html"]);
+const CONTENT_PANEL_TYPES = new Set(["markdown", "image", "embed", "html", "nav-bar"]);
 
 const SHADOW_MAP: Record<string, string> = {
   none: "none",
@@ -380,6 +380,7 @@ export function PanelContainer({
             config={panel.visualization}
             panel={panel}
             allResults={allResults}
+            dashboardId={dashboardId}
           />
         ) : queryResult ? (
           <ChartRenderer
@@ -388,6 +389,7 @@ export function PanelContainer({
             panel={panel}
             allResults={allResults}
             onClickDatum={handleChartClick}
+            dashboardId={dashboardId}
           />
         ) : panel.query.sql ? (
           <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
@@ -400,6 +402,7 @@ export function PanelContainer({
             config={panel.visualization}
             panel={panel}
             allResults={allResults}
+            dashboardId={dashboardId}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-xs text-muted-foreground">

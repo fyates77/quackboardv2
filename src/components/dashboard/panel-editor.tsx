@@ -40,7 +40,7 @@ interface PanelEditorProps {
 }
 
 /** Panel types that don't need a SQL query */
-const CONTENT_PANEL_TYPES = new Set(["markdown", "image", "embed", "html"]);
+const CONTENT_PANEL_TYPES = new Set(["markdown", "image", "embed", "html", "nav-bar"]);
 
 export function PanelEditor({
   dashboardId,
@@ -333,6 +333,7 @@ export function PanelEditor({
             onChangeType={handleChangeType}
             onChangeMapping={handleChangeMapping}
             onChangeOptions={handleChangeOptions}
+            dashboardId={dashboardId}
           />
         </TabsContent>
 
