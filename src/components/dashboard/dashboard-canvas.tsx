@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo } from "react";
 import {
   GridLayout,
   verticalCompactor,
@@ -34,6 +34,27 @@ interface DashboardCanvasProps {
 }
 
 const BASE_MARGIN = 12;
+
+function CanvasShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="flex-1 overflow-auto"
+      style={{
+        backgroundColor: "hsl(var(--muted))",
+        backgroundImage:
+          "radial-gradient(circle, hsl(var(--border)) 1.5px, transparent 1.5px)",
+        backgroundSize: "24px 24px",
+      }}
+    >
+      <div
+        className="mx-auto my-8 bg-background shadow-xl rounded-sm"
+        style={{ maxWidth: 1440, minHeight: 640, padding: 24 }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
 
 function getGridConfig(spacingMultiplier = 1) {
   const m = Math.round(BASE_MARGIN * spacingMultiplier);
@@ -101,6 +122,17 @@ export function DashboardCanvas({
     (p) => !visiblePanelIds || visiblePanelIds.has(p.id),
   );
 
+  const panelProps = (panel: Panel) => ({
+    dashboardId,
+    panel,
+    queryResult: queryResults.get(panel.id) ?? null,
+    loading: loadingPanels.has(panel.id),
+    onDuplicate: onDuplicatePanel,
+    allResults,
+    onClickDatum,
+    readOnly,
+  });
+
   // Scroll layout: panels flow vertically, sorted by layout Y position
   if (layoutMode === "scroll") {
     const sortedPanels = [...filteredPanels].sort((a, b) => {
@@ -110,64 +142,50 @@ export function DashboardCanvas({
     });
 
     return (
-      <div
-        ref={containerRef}
-        className="flex-1 flex flex-col"
-        style={{ gap: gridConfig.margin[1] }}
-      >
-        {sortedPanels.map((panel) => {
-          const li = layout.find((l) => l.i === panel.id);
-          const h = (li?.h ?? 3) * gridConfig.rowHeight;
-          return (
-            <div key={panel.id} style={{ minHeight: h }}>
-              <PanelErrorBoundary panelTitle={panel.title}>
-                <PanelContainer
-                  dashboardId={dashboardId}
-                  panel={panel}
-                  queryResult={queryResults.get(panel.id) ?? null}
-                  loading={loadingPanels.has(panel.id)}
-                  onDuplicate={onDuplicatePanel}
-                  allResults={allResults}
-                  onClickDatum={onClickDatum}
-                  readOnly={readOnly}
-                />
-              </PanelErrorBoundary>
-            </div>
-          );
-        })}
-      </div>
+      <CanvasShell>
+        <div
+          ref={containerRef}
+          className="flex flex-col"
+          style={{ gap: gridConfig.margin[1] }}
+        >
+          {sortedPanels.map((panel) => {
+            const li = layout.find((l) => l.i === panel.id);
+            const h = (li?.h ?? 3) * gridConfig.rowHeight;
+            return (
+              <div key={panel.id} style={{ minHeight: h }}>
+                <PanelErrorBoundary panelTitle={panel.title}>
+                  <PanelContainer {...panelProps(panel)} />
+                </PanelErrorBoundary>
+              </div>
+            );
+          })}
+        </div>
+      </CanvasShell>
     );
   }
 
   return (
-    <div ref={containerRef} className="flex-1">
-      {containerWidth > 0 && (
-        <GridLayout
-          layout={layout}
-          width={containerWidth}
-          gridConfig={gridConfig}
-          compactor={verticalCompactor}
-          dragConfig={readOnly ? undefined : { handle: ".panel-drag-handle" }}
-          onLayoutChange={readOnly ? undefined : handleLayoutChange}
-        >
-          {filteredPanels.map((panel) => (
-            <div key={panel.id}>
-              <PanelErrorBoundary panelTitle={panel.title}>
-                <PanelContainer
-                  dashboardId={dashboardId}
-                  panel={panel}
-                  queryResult={queryResults.get(panel.id) ?? null}
-                  loading={loadingPanels.has(panel.id)}
-                  onDuplicate={onDuplicatePanel}
-                  allResults={allResults}
-                  onClickDatum={onClickDatum}
-                  readOnly={readOnly}
-                />
-              </PanelErrorBoundary>
-            </div>
-          ))}
-        </GridLayout>
-      )}
-    </div>
+    <CanvasShell>
+      <div ref={containerRef}>
+        {containerWidth > 0 && (
+          <GridLayout
+            layout={layout}
+            width={containerWidth}
+            gridConfig={gridConfig}
+            compactor={verticalCompactor}
+            dragConfig={readOnly ? undefined : { handle: ".panel-drag-handle" }}
+            onLayoutChange={readOnly ? undefined : handleLayoutChange}
+          >
+            {filteredPanels.map((panel) => (
+              <div key={panel.id}>
+                <PanelErrorBoundary panelTitle={panel.title}>
+                  <PanelContainer {...panelProps(panel)} />
+                </PanelErrorBoundary>
+              </div>
+            ))}
+          </GridLayout>
+        )}
+      </div>
+    </CanvasShell>
   );
 }

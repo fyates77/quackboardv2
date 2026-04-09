@@ -30,5 +30,6 @@ export interface QueryEngine {
   describeTable(tableName: string): Promise<ColumnInfo[]>;
   executeQuery(sql: string): Promise<QueryResult>;
   validateQuery(sql: string): Promise<{ valid: boolean; error?: string }>;
+  executeDDL(sql: string): Promise<void>;
   destroy(): Promise<void>;
 }

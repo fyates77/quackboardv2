@@ -126,6 +126,11 @@ export class DuckDBWasmEngine implements QueryEngine {
     }
   }
 
+  async executeDDL(sql: string): Promise<void> {
+    if (!this.conn) throw new Error("Engine not initialized");
+    await this.conn.query(sql);
+  }
+
   async destroy(): Promise<void> {
     if (this.conn) {
       await this.conn.close();

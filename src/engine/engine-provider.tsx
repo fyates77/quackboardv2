@@ -6,6 +6,7 @@ import {
 } from "react";
 import { DuckDBWasmEngine } from "./duckdb-wasm-engine";
 import { rehydrateDataSources } from "./rehydrate-data-sources";
+import { rehydrateSemanticLayer } from "./rehydrate-semantic-layer";
 import type { QueryEngine } from "./types";
 
 export const EngineContext = createContext<QueryEngine | null>(null);
@@ -27,6 +28,7 @@ export function EngineProvider({ children, fallback }: EngineProviderProps) {
       .initialize()
       .then(async () => {
         await rehydrateDataSources(eng);
+        await rehydrateSemanticLayer(eng);
         if (!cancelled) setEngine(eng);
       })
       .catch((err) => {

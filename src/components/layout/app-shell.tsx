@@ -10,6 +10,8 @@ interface AppShellProps {
 const NAV_ITEMS = [
   { to: "/dashboards", label: "Dashboards" },
   { to: "/data-sources", label: "Data" },
+  { to: "/semantic", label: "Data Tools" },
+  { to: "/play", label: "Play Pond" },
   { to: "/settings", label: "Settings" },
 ] as const;
 
@@ -36,7 +38,7 @@ export function AppShell({ children }: AppShellProps) {
 
         <ThemeToggle />
       </header>
-      <main className="flex-1 overflow-auto">{children}</main>
+      <main className="flex-1 overflow-auto p-6">{children}</main>
     </div>
   );
 }
