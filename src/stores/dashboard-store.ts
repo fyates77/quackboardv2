@@ -13,6 +13,7 @@ import type {
   PanelStyle,
   LayoutItem,
   VisualizationConfig,
+  CanvasPosition,
 } from "@/types/dashboard";
 
 interface DashboardState {
@@ -95,6 +96,10 @@ interface DashboardState {
 
   // Site header
   updateSiteHeader: (dashboardId: string, header: Partial<SiteHeader>) => void;
+
+  // Canvas editor
+  updateCanvasPosition: (dashboardId: string, panelId: string, pos: CanvasPosition) => void;
+  setPageWidth: (dashboardId: string, width: number) => void;
 
   // Create dashboard with pre-filled data (for templates)
   createDashboardWithData: (data: Omit<Dashboard, "id" | "createdAt" | "updatedAt">) => string;
@@ -602,6 +607,38 @@ export const useDashboardStore = create<DashboardState>()(
               [dashboardId]: {
                 ...dash,
                 siteHeader: { ...dash.siteHeader, ...header },
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          };
+        }),
+
+      updateCanvasPosition: (dashboardId, panelId, pos) =>
+        set((state) => {
+          const dash = state.dashboards[dashboardId];
+          if (!dash) return state;
+          return {
+            dashboards: {
+              ...state.dashboards,
+              [dashboardId]: {
+                ...dash,
+                canvasPositions: { ...dash.canvasPositions, [panelId]: pos },
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          };
+        }),
+
+      setPageWidth: (dashboardId, width) =>
+        set((state) => {
+          const dash = state.dashboards[dashboardId];
+          if (!dash) return state;
+          return {
+            dashboards: {
+              ...state.dashboards,
+              [dashboardId]: {
+                ...dash,
+                pageWidth: width,
                 updatedAt: new Date().toISOString(),
               },
             },

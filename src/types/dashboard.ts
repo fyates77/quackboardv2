@@ -1,3 +1,10 @@
+export interface CanvasPosition {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export interface Dashboard {
   id: string;
   name: string;
@@ -18,6 +25,10 @@ export interface Dashboard {
   theme?: DashboardTheme;
   /** Site header shown in consumer view */
   siteHeader?: SiteHeader;
+  /** Absolute pixel positions for canvas editor mode */
+  canvasPositions?: Record<string, CanvasPosition>;
+  /** Page frame width in px for canvas editor (default 1200) */
+  pageWidth?: number;
 }
 
 export interface SiteHeader {

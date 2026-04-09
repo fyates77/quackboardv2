@@ -3,7 +3,8 @@ import { AppShell } from "@/components/layout/app-shell";
 
 function RootComponent() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  if (pathname.startsWith("/view/")) {
+  // Full-viewport routes — skip AppShell nav
+  if (pathname.startsWith("/view/") || /^\/dashboards\/[^/]+/.test(pathname)) {
     return <Outlet />;
   }
   return (
