@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronRight, Play, AlertCircle, Plus, X, Code, Sliders, Maximize2 } from "lucide-react";
 import { useDashboardStore } from "@/stores/dashboard-store";
 import { useEngine } from "@/engine/use-engine";
@@ -6,11 +6,43 @@ import { buildSQL } from "@/lib/query-builder";
 import { queryCache } from "@/lib/query-cache";
 import { createId } from "@/lib/id";
 import { SqlEditor } from "@/components/query/sql-editor";
+import { JsEditor } from "@/components/query/js-editor";
 import type { Panel } from "@/types/dashboard";
 import type { QueryResult } from "@/engine/types";
+import { VizConfigPanel } from "@/components/visualizations/viz-config-panel";
 import type { BuilderConfig, AggFn, FilterOp } from "@/types/builder";
 import { AGG_LABELS, FILTER_OPS } from "@/types/builder";
 import type { RightTab } from "./editor-shell";
+
+// ── Content panel defaults ─────────────────────────────────────────────────
+
+const DEFAULT_CUSTOM_VIZ = `// Available in scope: container, data, d3, width, height
+// 'data' is an array of row objects from your query result.
+// 'container' is the DOM element to render into.
+// 'd3' is D3 v7.
+
+const svg = d3.select(container)
+  .append("svg")
+  .attr("width", width)
+  .attr("height", height);
+
+svg.selectAll("circle")
+  .data(data)
+  .join("circle")
+  .attr("cx", (_, i) => (i + 0.5) * (width / data.length))
+  .attr("cy", height / 2)
+  .attr("r", 10)
+  .attr("fill", "steelblue");
+`;
+
+const DEFAULT_HTML = `<div style="padding: 16px; font-family: sans-serif;">
+  <h2>Hello!</h2>
+  <p>Edit this HTML. You can use <strong>any HTML</strong> and inline styles.</p>
+</div>`;
+
+const DEFAULT_MARKDOWN = `## Heading
+
+Write **markdown** here. Supports *italic*, lists, tables, and more.`;
 
 interface RightPanelProps {
   dashboardId: string;
@@ -19,6 +51,41 @@ interface RightPanelProps {
   onTabChange: (tab: RightTab) => void;
   queryResults: Map<string, QueryResult>;
   onQueryResult: (panelId: string, result: QueryResult) => void;
+}
+
+// ── ORDER BY SQL helpers ───────────────────────────────────────────────────
+
+interface SortItem { column: string; dir: "ASC" | "DESC" }
+
+/** Parse the outermost ORDER BY clause from a SQL string. */
+function parseOrderBy(sql: string): SortItem[] {
+  const match = sql.match(/\bORDER\s+BY\b([\s\S]+?)(?:\bLIMIT\b|\bOFFSET\b|$)/i);
+  if (!match) return [];
+  return match[1]
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => {
+      const parts = s.split(/\s+/);
+      const last = parts[parts.length - 1]?.toUpperCase();
+      if (last === "ASC" || last === "DESC") {
+        return { column: parts.slice(0, -1).join(" "), dir: last as "ASC" | "DESC" };
+      }
+      return { column: parts.join(" "), dir: "ASC" as const };
+    });
+}
+
+/** Strip the outermost ORDER BY clause and reinsert new sort items, preserving any LIMIT/OFFSET. */
+function applyOrderByToSql(sql: string, sortItems: SortItem[]): string {
+  // Extract trailing LIMIT / OFFSET clause
+  const limitMatch = sql.match(/(\s*\b(?:LIMIT|OFFSET)\b[\s\S]*)$/i);
+  const limitSuffix = limitMatch ? limitMatch[1] : "";
+  const base = limitSuffix ? sql.slice(0, sql.length - limitSuffix.length) : sql;
+  // Strip existing ORDER BY
+  const stripped = base.replace(/\s*\bORDER\s+BY\b[\s\S]*$/i, "").trimEnd();
+  if (sortItems.length === 0) return stripped + limitSuffix;
+  const orderClause = sortItems.map((s) => `${s.column} ${s.dir}`).join(", ");
+  return `${stripped}\nORDER BY ${orderClause}${limitSuffix}`;
 }
 
 // ── Section wrapper ────────────────────────────────────────────────────────
@@ -95,17 +162,20 @@ function SmallInput({
   onChange,
   type = "text",
   readOnly,
+  placeholder,
 }: {
   value: string | number;
   onChange?: (v: string) => void;
   type?: "text" | "number";
   readOnly?: boolean;
+  placeholder?: string;
 }) {
   return (
     <input
       type={type}
       value={value}
       readOnly={readOnly}
+      placeholder={placeholder}
       onChange={(e) => onChange?.(e.target.value)}
       style={{
         width: "100%",
@@ -128,14 +198,19 @@ function SmallInput({
 function DesignTab({
   dashboardId,
   panel,
+  queryResult,
 }: {
   dashboardId: string;
   panel: Panel;
+  queryResult: QueryResult | null;
 }) {
   const updatePanel = useDashboardStore((s) => s.updatePanel);
+  const updatePanelVisualization = useDashboardStore((s) => s.updatePanelVisualization);
+  const updatePanelQuery = useDashboardStore((s) => s.updatePanelQuery);
   const updateCanvasPosition = useDashboardStore((s) => s.updateCanvasPosition);
   const dashboard = useDashboardStore((s) => s.dashboards[dashboardId]);
   const pos = dashboard?.canvasPositions?.[panel.id];
+  const vizType = panel.visualization?.type;
 
   const handleNameChange = useCallback(
     (title: string) => updatePanel(dashboardId, panel.id, { title }),
@@ -200,68 +275,16 @@ function DesignTab({
         </div>
       </Section>
 
-      {/* Appearance */}
-      <Section title="Appearance">
-        <FieldLabel>Chart type</FieldLabel>
-        <select
-          value={panel.visualization?.type ?? "table"}
-          onChange={(e) =>
-            updatePanel(dashboardId, panel.id, {
-              visualization: { ...panel.visualization, type: e.target.value as Panel["visualization"]["type"] },
-            })
-          }
-          style={{
-            width: "100%",
-            fontSize: 11,
-            padding: "3px 6px",
-            border: "0.5px solid var(--color-border-secondary)",
-            borderRadius: "var(--border-radius-sm)",
-            background: "var(--color-background-primary)",
-            color: "var(--color-text-primary)",
-            cursor: "pointer",
-          }}
-        >
-          <optgroup label="Charts">
-            {["bar", "line", "area", "scatter", "histogram", "box", "heatmap", "waffle", "combo"].map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </optgroup>
-          <optgroup label="Specialized">
-            {["pie", "funnel", "treemap", "tree", "density", "difference", "flow", "network"].map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </optgroup>
-          <optgroup label="Tables">
-            {["table", "grouped-table", "crosstab"].map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </optgroup>
-          <optgroup label="Content">
-            {["kpi", "markdown", "html", "image", "embed", "custom", "nav-bar"].map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </optgroup>
-        </select>
-
-        <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>
-          <div style={{ flex: 1 }}>
-            <FieldLabel>Fill</FieldLabel>
-            <div style={{ display: "flex", gap: 4 }}>
-              <div
-                style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: 4,
-                  border: "0.5px solid var(--color-border-secondary)",
-                  background: panel.style?.background ?? "var(--color-background-primary)",
-                  flexShrink: 0,
-                }}
-              />
-              <SmallInput value={panel.style?.background ?? "#ffffff"} readOnly />
-            </div>
-          </div>
-        </div>
-      </Section>
+      {/* Visualization config — type picker, column mapping, all style/axes/transform/advanced options */}
+      <VizConfigPanel
+        config={panel.visualization}
+        result={queryResult}
+        onChangeType={(type) => updatePanelVisualization(dashboardId, panel.id, { type })}
+        onChangeMapping={(mapping) => updatePanelVisualization(dashboardId, panel.id, { mapping })}
+        onChangeOptions={(options) => updatePanelVisualization(dashboardId, panel.id, { options })}
+        onChangeSql={(sql) => updatePanelQuery(dashboardId, panel.id, sql)}
+        dashboardId={dashboardId}
+      />
 
       {/* Conditional visibility */}
       {panel.visibilityCondition && (
@@ -285,6 +308,91 @@ function DesignTab({
           </div>
         </Section>
       )}
+
+      {/* ── Content editors — shown only for the relevant panel types ── */}
+
+      {vizType === "markdown" && (
+        <Section title="Markdown Content">
+          <p style={{ fontSize: 10, color: "var(--color-muted-foreground)", marginBottom: 6, lineHeight: 1.5 }}>
+            Supports standard Markdown: headings, bold, italic, lists, tables, code blocks, and links.
+          </p>
+          <textarea
+            value={panel.markdownContent ?? DEFAULT_MARKDOWN}
+            onChange={(e) => updatePanel(dashboardId, panel.id, { markdownContent: e.target.value })}
+            spellCheck={false}
+            style={{
+              width: "100%", fontSize: 11, fontFamily: "var(--font-mono)", lineHeight: 1.6,
+              padding: "6px 8px", border: "0.5px solid var(--color-border-secondary)",
+              borderRadius: "var(--border-radius-sm)", background: "var(--color-background-primary)",
+              color: "var(--color-text-primary)", resize: "vertical", minHeight: 200, outline: "none",
+              boxSizing: "border-box",
+            }}
+          />
+        </Section>
+      )}
+
+      {vizType === "html" && (
+        <Section title="HTML Content">
+          <p style={{ fontSize: 10, color: "var(--color-muted-foreground)", marginBottom: 6, lineHeight: 1.5 }}>
+            Write any HTML. Inline styles, tables, images, and links are all supported.
+          </p>
+          <div style={{ height: 240, border: "0.5px solid var(--color-border-secondary)", borderRadius: "var(--border-radius-sm)", overflow: "hidden" }}>
+            <JsEditor
+              value={panel.htmlContent ?? DEFAULT_HTML}
+              onChange={(v) => updatePanel(dashboardId, panel.id, { htmlContent: v })}
+            />
+          </div>
+        </Section>
+      )}
+
+      {vizType === "image" && (
+        <Section title="Image">
+          <FieldLabel>Image URL</FieldLabel>
+          <SmallInput
+            value={panel.imageUrl ?? ""}
+            onChange={(v) => updatePanel(dashboardId, panel.id, { imageUrl: v })}
+            placeholder="https://example.com/image.png"
+          />
+          <p style={{ fontSize: 10, color: "var(--color-muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
+            Paste any public image URL (PNG, JPG, SVG, GIF).
+          </p>
+        </Section>
+      )}
+
+      {vizType === "embed" && (
+        <Section title="Embed">
+          <FieldLabel>Embed URL</FieldLabel>
+          <SmallInput
+            value={panel.embedUrl ?? ""}
+            onChange={(v) => updatePanel(dashboardId, panel.id, { embedUrl: v })}
+            placeholder="https://example.com/page-to-embed"
+          />
+          <p style={{ fontSize: 10, color: "var(--color-muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
+            The URL will be loaded inside an iframe. The remote site must allow embedding.
+          </p>
+        </Section>
+      )}
+
+      {vizType === "custom" && (
+        <Section title="Custom Visualization (JS)">
+          <p style={{ fontSize: 10, color: "var(--color-muted-foreground)", marginBottom: 6, lineHeight: 1.5 }}>
+            Write JavaScript. The following variables are available:
+          </p>
+          <ul style={{ fontSize: 10, color: "var(--color-muted-foreground)", marginBottom: 8, paddingLeft: 14, lineHeight: 1.8 }}>
+            <li><code>container</code> — DOM element to render into</li>
+            <li><code>data</code> — array of row objects from your query</li>
+            <li><code>d3</code> — D3 v7 library</li>
+            <li><code>width</code> / <code>height</code> — container dimensions in px</li>
+          </ul>
+          <div style={{ height: 280, border: "0.5px solid var(--color-border-secondary)", borderRadius: "var(--border-radius-sm)", overflow: "hidden" }}>
+            <JsEditor
+              value={panel.customVizCode ?? DEFAULT_CUSTOM_VIZ}
+              onChange={(v) => updatePanel(dashboardId, panel.id, { customVizCode: v })}
+            />
+          </div>
+        </Section>
+      )}
+
     </>
   );
 }
@@ -320,9 +428,23 @@ function DataTab({
   const [tableCols, setTableCols] = useState<string[]>([]);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [expandOpen, setExpandOpen] = useState(false);
+  // Local SQL buffer — only flushed to the store on Run
+  const [localSql, setLocalSql] = useState(() => panel.query.sql);
+  // Sort items: kept in sync with the ORDER BY clause in localSql
+  const [sortItems, setSortItems] = useState<SortItem[]>(() => parseOrderBy(panel.query.sql));
+  const panelIdRef = useRef(panel.id);
+
+  // When the active panel changes, reset local SQL and sort state
+  useEffect(() => {
+    if (panelIdRef.current !== panel.id) {
+      panelIdRef.current = panel.id;
+      setLocalSql(panel.query.sql);
+      setSortItems(parseOrderBy(panel.query.sql));
+    }
+  }, [panel.id, panel.query.sql]);
 
   const result = localResult ?? queryResult;
-  const generatedSql = mode === "builder" ? buildSQL(cfg) : panel.query.sql;
+  const generatedSql = mode === "builder" ? buildSQL(cfg) : localSql;
 
   // Load available tables when entering builder mode
   useEffect(() => {
@@ -346,8 +468,10 @@ function DataTab({
   }
 
   const handleRun = useCallback(async () => {
-    const sql = mode === "builder" ? generatedSql : panel.query.sql;
+    const sql = mode === "builder" ? generatedSql : localSql;
     if (!sql.trim()) return;
+    // Flush the buffered SQL to the store so the canvas and watchers get the final value
+    if (mode === "sql") updatePanelQuery(dashboardId, panel.id, sql);
     setRunning(true); setError(null);
     try {
       const r = await engine.executeQuery(sql);
@@ -357,7 +481,7 @@ function DataTab({
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally { setRunning(false); }
-  }, [generatedSql, panel.query.sql, panel.id, mode, engine, onQueryResult]);
+  }, [generatedSql, localSql, panel.id, dashboardId, mode, engine, onQueryResult, updatePanelQuery]);
 
   const CHANNELS = ["x", "y", "color", "size", "label"];
 
@@ -580,8 +704,8 @@ function DataTab({
           {/* Editor */}
           <div style={{ height: 140, marginBottom: 6, borderRadius: "var(--border-radius-sm)", overflow: "hidden", border: "0.5px solid var(--color-border-secondary)" }}>
             <SqlEditor
-              value={panel.query.sql}
-              onChange={(v) => updatePanelQuery(dashboardId, panel.id, v)}
+              value={localSql}
+              onChange={setLocalSql}
               onRun={handleRun}
             />
           </div>
@@ -603,6 +727,75 @@ function DataTab({
           )}
         </Section>
       )}
+
+      {/* ── Sort (ORDER BY) ── */}
+      <Section title="Sort" defaultOpen={sortItems.length > 0}>
+        {/* Each sort item: column picker + ASC/DESC toggle + remove */}
+        {sortItems.map((item, i) => {
+          const cols = result?.columns.map((c) => c.name) ?? [];
+          const updateItem = (patch: Partial<SortItem>) => {
+            const next = sortItems.map((s, j) => j === i ? { ...s, ...patch } : s);
+            setSortItems(next);
+            if (next[i].column.trim()) setLocalSql(applyOrderByToSql(localSql, next));
+          };
+          return (
+            <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
+              {/* Column: select from results if available, else free-text */}
+              {cols.length > 0 ? (
+                <select
+                  value={item.column}
+                  onChange={(e) => updateItem({ column: e.target.value })}
+                  style={{ ...selectStyle, flex: 1 }}
+                >
+                  <option value="">— column —</option>
+                  {cols.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              ) : (
+                <input
+                  value={item.column}
+                  onChange={(e) => updateItem({ column: e.target.value })}
+                  placeholder="column name"
+                  style={{ ...selectStyle, flex: 1 }}
+                />
+              )}
+              {/* ASC / DESC toggle */}
+              <button
+                onClick={() => updateItem({ dir: item.dir === "ASC" ? "DESC" : "ASC" })}
+                style={{
+                  fontSize: 10, padding: "3px 7px", flexShrink: 0,
+                  border: "0.5px solid var(--color-border-secondary)",
+                  borderRadius: "var(--border-radius-sm)",
+                  background: "transparent", color: "var(--color-text-primary)", cursor: "pointer",
+                }}
+              >
+                {item.dir}
+              </button>
+              {/* Remove */}
+              <button
+                onClick={() => {
+                  const next = sortItems.filter((_, j) => j !== i);
+                  setSortItems(next);
+                  setLocalSql(applyOrderByToSql(localSql, next));
+                }}
+                style={removeBtn}
+              >
+                <X size={10} />
+              </button>
+            </div>
+          );
+        })}
+        <button
+          onClick={() => setSortItems([...sortItems, { column: "", dir: "ASC" }])}
+          style={addBtn}
+        >
+          <Plus size={10} /> Add sort column
+        </button>
+        {sortItems.length > 0 && (
+          <p style={{ fontSize: 9, color: "var(--color-muted-foreground)", marginTop: 5, lineHeight: 1.4 }}>
+            Updates SQL above — click Run to apply.
+          </p>
+        )}
+      </Section>
 
       {/* Column mapping */}
       <Section title="Column Mapping">
@@ -637,11 +830,11 @@ function DataTab({
       {/* ── Expand overlay ── */}
       {expandOpen && (
         <SqlExpandOverlay
-          sql={panel.query.sql}
+          sql={localSql}
           result={result}
           running={running}
           error={error}
-          onChange={(v) => updatePanelQuery(dashboardId, panel.id, v)}
+          onChange={setLocalSql}
           onRun={handleRun}
           onClose={() => setExpandOpen(false)}
         />
@@ -952,7 +1145,11 @@ export function RightPanel({
         ) : (
           <>
             {activeTab === "design" && (
-              <DesignTab dashboardId={dashboardId} panel={selectedPanel} />
+              <DesignTab
+                dashboardId={dashboardId}
+                panel={selectedPanel}
+                queryResult={queryResults.get(selectedPanel.id) ?? null}
+              />
             )}
             {activeTab === "data" && (
               <DataTab

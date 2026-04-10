@@ -367,6 +367,7 @@ function typeIcon(type: string | undefined) {
     case "html":
     case "embed":
     case "custom":
+    case "vega-lite":
       return <Type size={11} style={{ color: "var(--color-muted-foreground)", flexShrink: 0 }} />;
     default:
       return <BarChart2 size={11} style={{ color: "var(--color-muted-foreground)", flexShrink: 0 }} />;
@@ -397,6 +398,24 @@ export function CanvasArea({
   const updateCanvasPosition = useDashboardStore((s) => s.updateCanvasPosition);
   const pageWidth = dashboard.pageWidth ?? PAGE_WIDTH_DEFAULT;
   const pageHeight = pageContentHeight(dashboard);
+
+  // ── Auto-zoom: fit the page within the available container width ──────────
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  const scaleRef = useRef(1);
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver(([entry]) => {
+      const avail = entry.contentRect.width - 48; // 24px padding each side
+      const s = Math.min(1, Math.max(0.2, avail / pageWidth));
+      scaleRef.current = s;
+      setScale(s);
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [pageWidth]);
 
   const dragRef = useRef<DragState | null>(null);
   // Ref holds the authoritative live position during a drag — readable from any
@@ -443,8 +462,10 @@ export function CanvasArea({
     const onMove = (e: MouseEvent) => {
       const drag = dragRef.current;
       if (!drag) return;
-      const dx = e.clientX - drag.startX;
-      const dy = e.clientY - drag.startY;
+      // Divide by scale to convert from screen pixels to dashboard coordinates
+      const s = scaleRef.current;
+      const dx = (e.clientX - drag.startX) / s;
+      const dy = (e.clientY - drag.startY) / s;
       const orig = drag.origPos;
 
       let newPos: CanvasPosition;
@@ -505,6 +526,7 @@ export function CanvasArea({
 
       {/* Infinite canvas */}
       <div
+        ref={scrollContainerRef}
         style={{
           flex: 1,
           overflow: "auto",
@@ -517,9 +539,9 @@ export function CanvasArea({
         }}
         onClick={handleCanvasClick}
       >
-        {/* Page frame — margin:auto centers it when canvas is wider than the page;
-            when the page is wider the container scrolls both ways correctly. */}
-        <div style={{ position: "relative", margin: "0 auto", width: "fit-content" }}>
+        {/* Page frame — zoom scales the content to fit available width while
+            preserving layout (CSS zoom affects layout, unlike transform). */}
+        <div style={{ position: "relative", margin: "0 auto", width: "fit-content", zoom: scale }}>
           {/* Page label */}
           <div
             style={{

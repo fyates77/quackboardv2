@@ -244,6 +244,7 @@ export type VisualizationType =
   | "treemap"
   | "network"
   | "custom"
+  | "vega-lite"
   | "markdown"
   | "image"
   | "embed"
@@ -476,6 +477,49 @@ export interface VisualizationOptions {
   opacity?: number;
   /** Line/area stroke width */
   strokeWidth?: number;
+  /** Solid fill/stroke color when no color column is mapped (CSS color, e.g. "#3b82f6") */
+  markColor?: string;
+  /** Show value labels on bar charts (text above each bar) */
+  showBarLabels?: boolean;
+  /** Show dot markers at each data point on line charts */
+  showLinePoints?: boolean;
+  /** Sort bars by value: "asc" | "desc" | null */
+  barSort?: "asc" | "desc" | null;
+  /** Bar rounded corner radius in px (maps to Observable Plot rx) */
+  barCornerRadius?: number;
+  /** Bar outline stroke color */
+  barStroke?: string;
+  /** Bar fill opacity independent of global opacity (0–1) */
+  barFillOpacity?: number;
+  /** Inner padding between bars in px (maps to Observable Plot inset) */
+  barInset?: number;
+  /** Line stroke style preset */
+  strokeStyle?: "solid" | "dashed" | "dotted" | "longdash";
+  /** Chart-level title rendered above the chart */
+  chartTitle?: string;
+  /** Chart-level subtitle rendered below the title */
+  chartSubtitle?: string;
+  /** Scatter dot render mode */
+  dotMode?: "fill" | "stroke" | "both";
+  /** Scatter dot symbol shape */
+  dotSymbol?: "circle" | "square" | "triangle" | "diamond" | "pentagon" | "star" | "times" | "wye" | "cross";
+  /** Color scale explicit minimum (heatmap / continuous color) */
+  colorDomainMin?: number;
+  /** Color scale explicit maximum (heatmap / continuous color) */
+  colorDomainMax?: number;
+  /** Legend tick format (d3-format string, for continuous color legends) */
+  legendTickFormat?: string;
+  /** Legend title label */
+  legendTitle?: string;
+  /** Y-axis tick format string (d3-format, e.g. ",.0f" or "$,.2f" or "~s") */
+  yTickFormat?: string;
+  /** X-axis tick format string (d3-format or d3-time-format, e.g. "%b %Y") */
+  xTickFormat?: string;
+  /** Chart margin overrides in px */
+  marginLeft?: number;
+  marginRight?: number;
+  marginTop?: number;
+  marginBottom?: number;
   /** Reference lines */
   referenceLines?: Array<{
     axis: "x" | "y";
@@ -561,4 +605,7 @@ export interface VisualizationOptions {
   // ─── Nav Bar ───────────────────────────────────────────────────────
   /** Nav bar configuration (used when visualization type is "nav-bar") */
   navBarConfig?: NavBarConfig;
+  // ─── Vega-Lite ─────────────────────────────────────────────────────
+  /** JSON Vega-Lite spec string (used when visualization type is "vega-lite") */
+  vegaLiteSpec?: string;
 }

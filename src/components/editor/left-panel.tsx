@@ -19,6 +19,7 @@ import {
   Code,
   Navigation,
   ExternalLink,
+  Braces,
 } from "lucide-react";
 import type { Dashboard } from "@/types/dashboard";
 import type { RailTab } from "./editor-shell";
@@ -74,6 +75,7 @@ const ADD_ELEMENT_GROUPS = [
       { type: "embed", icon: <ExternalLink size={13} />, label: "Embed" },
       { type: "html", icon: <Code size={13} />, label: "HTML" },
       { type: "custom", icon: <Code size={13} />, label: "Custom" },
+      { type: "vega-lite", icon: <Braces size={13} />, label: "Vega-Lite" },
       { type: "nav-bar", icon: <Navigation size={13} />, label: "Nav Bar" },
       { type: "section", icon: <RectangleHorizontal size={13} />, label: "Section" },
     ],
@@ -113,6 +115,8 @@ function typeIcon(type: VisualizationType | undefined) {
     case "embed":
     case "custom":
       return <Type size={12} style={{ color: "var(--color-muted-foreground)", flexShrink: 0 }} />;
+    case "vega-lite":
+      return <Braces size={12} style={{ color: "var(--color-muted-foreground)", flexShrink: 0 }} />;
     case "nav-bar":
       return <Navigation size={12} style={{ color: "var(--color-muted-foreground)", flexShrink: 0 }} />;
     default:

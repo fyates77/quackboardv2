@@ -125,24 +125,71 @@ export function PlotChart({ type, result, mapping, options, annotations, onClick
       switch (type) {
         case "bar": {
           if (!x || !yField) break;
+          const isGrouped = options.stacked === false && colorField === "_series";
+          const barShared = {
+            fill: colorField ?? (options.markColor ?? "steelblue"),
+            ...(options.barStroke ? { stroke: options.barStroke, strokeWidth: 1 } : {}),
+            ...(options.barFillOpacity != null ? { fillOpacity: options.barFillOpacity } : {}),
+            ...(options.barCornerRadius != null ? { rx: options.barCornerRadius } : {}),
+            ...(options.barInset != null ? { inset: options.barInset } : {}),
+          };
           if (options.horizontal) {
             marks.push(
               Plot.barX(plotData, {
-                y: x,
+                y: isGrouped ? "_series" : x,
                 x: yField,
-                fill: colorField ?? "steelblue",
-                ...facet,
+                ...barShared,
+                fy: isGrouped ? x : undefined,
+                ...(options.barSort === "desc" ? { sort: { y: "-x" } } : {}),
+                ...(options.barSort === "asc" ? { sort: { y: "x" } } : {}),
+                ...(!isGrouped ? facet : {}),
               }),
             );
           } else {
             marks.push(
               Plot.barY(plotData, {
-                x,
+                x: isGrouped ? "_series" : x,
                 y: yField,
-                fill: colorField ?? "steelblue",
-                ...facet,
+                ...barShared,
+                fx: isGrouped ? x : undefined,
+                ...(options.barSort === "desc" ? { sort: { x: "-y" } } : {}),
+                ...(options.barSort === "asc" ? { sort: { x: "y" } } : {}),
+                ...(!isGrouped ? facet : {}),
               }),
             );
+          }
+          if (options.showBarLabels && x && yField) {
+            if (options.horizontal) {
+              marks.push(
+                Plot.text(plotData, {
+                  y: isGrouped ? "_series" : x,
+                  x: yField,
+                  text: (d: Record<string, unknown>) => {
+                    const v = d[yField!];
+                    return typeof v === "number" ? v.toLocaleString() : String(v ?? "");
+                  },
+                  dx: 4,
+                  textAnchor: "start",
+                  fontSize: 10,
+                  fill: "currentColor",
+                }),
+              );
+            } else {
+              marks.push(
+                Plot.text(plotData, {
+                  x: isGrouped ? "_series" : x,
+                  y: yField,
+                  text: (d: Record<string, unknown>) => {
+                    const v = d[yField!];
+                    return typeof v === "number" ? v.toLocaleString() : String(v ?? "");
+                  },
+                  dy: -6,
+                  textAnchor: "middle",
+                  fontSize: 10,
+                  fill: "currentColor",
+                }),
+              );
+            }
           }
           break;
         }
@@ -154,7 +201,7 @@ export function PlotChart({ type, result, mapping, options, annotations, onClick
               Plot.waffleX(plotData, {
                 y: x,
                 x: yField,
-                fill: colorField ?? "steelblue",
+                fill: colorField ?? (options.markColor ?? "steelblue"),
                 ...facet,
               }),
             );
@@ -163,7 +210,7 @@ export function PlotChart({ type, result, mapping, options, annotations, onClick
               Plot.waffleY(plotData, {
                 x,
                 y: yField,
-                fill: colorField ?? "steelblue",
+                fill: colorField ?? (options.markColor ?? "steelblue"),
                 ...facet,
               }),
             );
@@ -173,14 +220,20 @@ export function PlotChart({ type, result, mapping, options, annotations, onClick
 
         case "line": {
           if (!x || !yField) break;
+          const strokeDasharray =
+            options.strokeStyle === "dashed" ? "6,4" :
+            options.strokeStyle === "dotted" ? "2,3" :
+            options.strokeStyle === "longdash" ? "12,4" :
+            undefined;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           let lineOpts: any = {
             x,
             y: yField,
-            stroke: colorField ?? "steelblue",
+            stroke: colorField ?? (options.markColor ?? "steelblue"),
             curve: options.curve ?? "linear",
             strokeWidth: options.strokeWidth ?? undefined,
             strokeOpacity: options.opacity ?? undefined,
+            ...(strokeDasharray ? { strokeDasharray } : {}),
             ...facet,
           };
           if (options.windowSize && options.windowSize > 1) {
@@ -194,6 +247,17 @@ export function PlotChart({ type, result, mapping, options, annotations, onClick
           }
           marks.push(Plot.lineY(plotData, lineOpts));
           marks.push(Plot.ruleY([0]));
+          if (options.showLinePoints) {
+            marks.push(
+              Plot.dot(plotData, {
+                x,
+                y: yField,
+                fill: colorField ?? (options.markColor ?? "steelblue"),
+                r: 3,
+                ...facet,
+              }),
+            );
+          }
           break;
         }
 
@@ -203,7 +267,7 @@ export function PlotChart({ type, result, mapping, options, annotations, onClick
           let areaOpts: any = {
             x,
             y: yField,
-            fill: colorField ?? "steelblue",
+            fill: colorField ?? (options.markColor ?? "steelblue"),
             curve: options.curve ?? "linear",
             fillOpacity: options.opacity ?? 0.3,
             ...facet,
@@ -212,7 +276,7 @@ export function PlotChart({ type, result, mapping, options, annotations, onClick
           let areaLineOpts: any = {
             x,
             y: yField,
-            stroke: colorField ?? "steelblue",
+            stroke: colorField ?? (options.markColor ?? "steelblue"),
             curve: options.curve ?? "linear",
             strokeWidth: options.strokeWidth ?? undefined,
             ...facet,
@@ -238,15 +302,36 @@ export function PlotChart({ type, result, mapping, options, annotations, onClick
 
         case "scatter": {
           if (!x || !yField) break;
+          const dotColor = options.markColor ?? "steelblue";
+          const dotMode = options.dotMode ?? "fill";
+          const dotFill = dotMode === "stroke" ? "none" : (colorField ?? dotColor);
+          const dotStroke = dotMode === "fill" ? (colorField ?? dotColor) : (colorField ?? dotColor);
+          const dotFillOpacity = dotMode === "both" ? 0.2 : undefined;
+          const dotSymbol = options.dotSymbol ?? (colorField === "_series" ? "_series" : undefined);
           marks.push(
             Plot.dot(plotData, {
               x,
               y: yField,
-              fill: colorField ?? "steelblue",
+              fill: dotFill,
+              stroke: dotMode !== "fill" ? dotStroke : undefined,
+              fillOpacity: dotFillOpacity,
               r: mapping.size ?? 3,
+              ...(dotSymbol ? { symbol: dotSymbol } : {}),
               ...facet,
             }),
           );
+          if (mapping.label) {
+            marks.push(
+              Plot.text(plotData, {
+                x,
+                y: yField,
+                text: mapping.label,
+                dy: -8,
+                fontSize: 10,
+                fill: "currentColor",
+              }),
+            );
+          }
           break;
         }
 
@@ -255,7 +340,7 @@ export function PlotChart({ type, result, mapping, options, annotations, onClick
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const binOpts: any = { x };
           if (colorField) binOpts.fill = colorField;
-          else binOpts.fill = "steelblue";
+          else binOpts.fill = options.markColor ?? "steelblue";
           if (options.thresholds) binOpts.thresholds = options.thresholds;
           marks.push(Plot.rectY(data, Plot.binX({ y: "count" }, binOpts)));
           marks.push(Plot.ruleY([0]));
@@ -322,7 +407,7 @@ export function PlotChart({ type, result, mapping, options, annotations, onClick
               Plot.dot(data, {
                 x,
                 y: yDensity,
-                fill: colorField ?? "steelblue",
+                fill: colorField ?? (options.markColor ?? "steelblue"),
                 r: 2,
                 fillOpacity: 0.6,
               }),
@@ -393,7 +478,7 @@ export function PlotChart({ type, result, mapping, options, annotations, onClick
             Plot.barY(data, {
               x,
               y: yColumns[0],
-              fill: "steelblue",
+              fill: options.markColor ?? "steelblue",
               fillOpacity: options.opacity ?? 0.7,
               ...facet,
             }),
@@ -549,32 +634,56 @@ export function PlotChart({ type, result, mapping, options, annotations, onClick
         }
       }
 
+      // --- Preserve SQL ORDER BY: compute categorical domain in data first-appearance order ---
+      // Observable Plot collects domain values in first-appearance order by default, but
+      // explicitly setting `domain` guarantees it — preventing any internal re-sorting.
+      // Only applies when no explicit value-sort is active (barSort overrides data order).
+      const isGroupedBar = type === "bar" && options.stacked === false && colorField === "_series";
+      const catAxis = x && !options.barSort
+        ? ([...new Set(plotData.map((d: Record<string, unknown>) => d[x!]))] as unknown[])
+        : undefined;
+      // For vertical bars the categorical dimension is x; for horizontal it's y.
+      const xCatDomain: string[] | undefined =
+        catAxis && !options.horizontal && !isGroupedBar && typeof catAxis[0] === "string"
+          ? catAxis as string[]
+          : undefined;
+      const yCatDomain: string[] | undefined =
+        catAxis && options.horizontal && !isGroupedBar && typeof catAxis[0] === "string"
+          ? catAxis as string[]
+          : undefined;
+
       // --- Plot options ---
       const plotOptions: Plot.PlotOptions = {
         marks,
         width: el.clientWidth || 400,
         height: el.clientHeight || 300,
-        marginLeft: 60,
-        marginBottom: 40,
-        marginTop: 20,
-        marginRight: 20,
+        marginLeft: options.marginLeft ?? 60,
+        marginBottom: options.marginBottom ?? 40,
+        marginTop: options.marginTop ?? 20,
+        marginRight: options.marginRight ?? 20,
+        ...(options.chartTitle ? { title: options.chartTitle } : {}),
+        ...(options.chartSubtitle ? { subtitle: options.chartSubtitle } : {}),
         style: {
           background: "transparent",
           overflow: "visible",
         },
         x: {
+          ...(xCatDomain ? { domain: xCatDomain } : {}),
           label: options.xLabel ?? null,
           grid: options.xGrid ?? false,
           ...(options.xScaleType ? { type: options.xScaleType } : {}),
           ...(options.xReverse ? { reverse: true } : {}),
+          ...(options.xTickFormat ? { tickFormat: options.xTickFormat } : {}),
         },
         y: {
+          ...(yCatDomain ? { domain: yCatDomain } : {}),
           label: options.yLabel ?? null,
           grid: options.yGrid ?? false,
           ...(options.yScaleType ? { type: options.yScaleType } : {}),
           ...(options.yZero ? { zero: true } : {}),
           ...(options.yNice !== false ? { nice: true } : {}),
           ...(options.yReverse ? { reverse: true } : {}),
+          ...(options.yTickFormat ? { tickFormat: options.yTickFormat } : {}),
         },
       };
 
@@ -594,15 +703,24 @@ export function PlotChart({ type, result, mapping, options, annotations, onClick
           scheme: (options.colorScheme ?? "ylgnbu") as any,
           type: "sequential",
           legend: options.showLegend !== false,
+          ...(options.colorDomainMin != null || options.colorDomainMax != null
+            ? { domain: [options.colorDomainMin ?? 0, options.colorDomainMax ?? 1] }
+            : {}),
+          ...(options.legendTickFormat ? { tickFormat: options.legendTickFormat } : {}),
+          ...(options.legendTitle ? { label: options.legendTitle } : {}),
         };
       } else if (options.colorScheme && colorField) {
         plotOptions.color = {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           scheme: options.colorScheme as any,
           legend: options.showLegend !== false,
+          ...(options.legendTitle ? { label: options.legendTitle } : {}),
         };
       } else if (options.showLegend === false) {
         plotOptions.color = { legend: false };
+      } else if (options.legendTitle && colorField) {
+        // showLegend is not false here (that branch is above), so legend = true
+        plotOptions.color = { legend: true, label: options.legendTitle };
       }
 
       const svg = Plot.plot(plotOptions);

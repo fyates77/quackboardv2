@@ -107,7 +107,7 @@ export function EditorShell({
       </div>
 
       {/* Right panel */}
-      <div style={{ gridColumn: "4", gridRow: "2" }}>
+      <div style={{ gridColumn: "4", gridRow: "2", overflow: "hidden", height: "100%" }}>
         <RightPanel
           dashboardId={dashboardId}
           selectedPanel={selectedPanel}

@@ -15,6 +15,7 @@ import { ImagePanel } from "./image-panel";
 import { EmbedPanel } from "./embed-panel";
 import { HtmlPanel } from "./html-panel";
 import { NavBarPanel } from "./nav-bar-panel";
+import { VegaLitePanel } from "./vega-lite-panel";
 
 export interface ClickDatum {
   column: string;
@@ -88,6 +89,15 @@ export function ChartRenderer({ result, config, panel, allResults, onClickDatum,
       <CustomVizPanel
         result={result}
         code={panel?.customVizCode ?? ""}
+      />
+    );
+  }
+
+  if (config.type === "vega-lite") {
+    return (
+      <VegaLitePanel
+        spec={config.options.vegaLiteSpec ?? "{}"}
+        result={result}
       />
     );
   }
