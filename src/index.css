@@ -129,6 +129,51 @@
   }
 }
 
+/* ── Editor chrome buttons ───────────────────────────────────────────────── */
+/* Use className="ed-btn" + data-active="true/false" on every editor button.  */
+/* Never set background via onMouseEnter/onMouseLeave — CSS handles all of it. */
+.ed-btn {
+  background: transparent;
+  color: var(--color-muted-foreground);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, color 0.1s;
+}
+.ed-btn:hover {
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
+}
+.ed-btn[data-active="true"] {
+  background: hsl(var(--primary) / 0.12);
+  color: var(--color-primary);
+}
+/* Layer rows in the layer tree use ed-layer-row */
+.ed-layer-row {
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.ed-layer-row:hover {
+  background: var(--color-background-secondary);
+}
+.ed-layer-row[data-active="true"] {
+  background: var(--color-background-info);
+  color: var(--color-text-info);
+}
+/* Add-element grid buttons */
+.ed-add-btn {
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.1s;
+  border: 0.5px solid var(--color-border-tertiary);
+}
+.ed-add-btn:hover {
+  background: var(--color-background-secondary);
+}
+
 /* ── Frutiger Aero utility classes ── */
 
 /* Frosted glass panel */

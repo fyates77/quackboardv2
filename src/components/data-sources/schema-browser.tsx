@@ -238,9 +238,9 @@ function MacroNode({ macro }: { macro: SemanticMacro }) {
 
 export function SchemaBrowser() {
   const dataSources = useDataSourceStore((s) => s.dataSources);
-  const { models, joins, macros } = useSemanticStore(
-    (s) => ({ models: s.models, joins: s.joins, macros: s.macros }),
-  );
+  const models = useSemanticStore((s) => s.models);
+  const joins = useSemanticStore((s) => s.joins);
+  const macros = useSemanticStore((s) => s.macros);
 
   const dsList = useMemo(() => Object.values(dataSources), [dataSources]);
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BarChart2, Table2, Type, Image, LayoutDashboard, RectangleHorizontal } from "lucide-react";
 import { useDashboardStore } from "@/stores/dashboard-store";
+import { ChartRenderer } from "@/components/visualizations/chart-renderer";
 import type { Dashboard, CanvasPosition, Panel } from "@/types/dashboard";
 import type { QueryResult } from "@/engine/types";
 import type { EditorTool } from "./editor-shell";
@@ -109,6 +110,8 @@ function Ruler({ width }: { width: number }) {
 
 // ── Element preview content ────────────────────────────────────────────────
 
+const CONTENT_TYPES = new Set(["markdown", "html", "embed", "image", "custom", "nav-bar"]);
+
 function ElementPreview({ panel, result, loading }: {
   panel: Panel;
   result: QueryResult | null;
@@ -119,151 +122,65 @@ function ElementPreview({ panel, result, loading }: {
   if (loading) {
     return (
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div
-          style={{
-            width: 16,
-            height: 16,
-            borderRadius: "50%",
-            border: "2px solid var(--color-border-secondary)",
-            borderTopColor: "var(--color-text-info)",
-            animation: "spin 0.8s linear infinite",
-          }}
+        <div style={{ width: 16, height: 16, borderRadius: "50%", border: "2px solid var(--color-border-secondary)", borderTopColor: "var(--color-text-info)", animation: "spin 0.8s linear infinite" }} />
+      </div>
+    );
+  }
+
+  // Content panels always render (no data needed)
+  if (CONTENT_TYPES.has(type ?? "")) {
+    return (
+      <div style={{ flex: 1, overflow: "hidden", pointerEvents: "none" }}>
+        <ChartRenderer
+          result={{ columns: [], rows: [], rowCount: 0, elapsed: 0 }}
+          config={panel.visualization}
+          panel={panel}
         />
       </div>
     );
   }
 
+  // Data panels: render real chart when we have results
+  if (result) {
+    return (
+      <div style={{ flex: 1, overflow: "hidden", pointerEvents: "none" }}>
+        <ChartRenderer
+          result={result}
+          config={panel.visualization}
+          panel={panel}
+        />
+      </div>
+    );
+  }
+
+  // No data yet — show a placeholder matching the type
   if (type === "kpi") {
     return (
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 16 }}>
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
         {[0, 1, 2].map((i) => (
-          <div
-            key={i}
-            style={{
-              background: "var(--color-background-primary)",
-              border: "0.5px solid var(--color-border-secondary)",
-              borderRadius: "var(--border-radius-md)",
-              padding: "8px 12px",
-              minWidth: 64,
-            }}
-          >
-            <div style={{ fontSize: 9, color: "var(--color-muted-foreground)", marginBottom: 2 }}>
-              {result?.columns[i]?.name ?? `Metric ${i + 1}`}
-            </div>
-            <div style={{ fontSize: 15, fontWeight: 500, color: "var(--color-text-primary)" }}>
-              {result ? String(result.rows[0]?.[result.columns[i]?.name ?? ""] ?? "—") : "—"}
-            </div>
+          <div key={i} style={{ background: "var(--color-background-secondary)", border: "0.5px solid var(--color-border-tertiary)", borderRadius: "var(--border-radius-md)", padding: "8px 12px", minWidth: 56 }}>
+            <div style={{ fontSize: 9, color: "var(--color-muted-foreground)", marginBottom: 2 }}>Metric {i + 1}</div>
+            <div style={{ fontSize: 15, fontWeight: 500, color: "var(--color-muted-foreground)", opacity: 0.4 }}>—</div>
           </div>
         ))}
       </div>
     );
   }
 
-  if (type === "table" || type === "grouped-table") {
-    const cols = result?.columns.slice(0, 4) ?? [];
-    const rows = result?.rows.slice(0, 4) ?? [];
+  if (type === "table" || type === "grouped-table" || type === "crosstab") {
     return (
-      <div style={{ flex: 1, overflow: "hidden", padding: "4px 8px" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9 }}>
-          <thead>
-            <tr>
-              {cols.map((c) => (
-                <th
-                  key={c.name}
-                  style={{
-                    padding: "3px 6px",
-                    textAlign: "left",
-                    fontWeight: 500,
-                    color: "var(--color-muted-foreground)",
-                    background: "var(--color-background-secondary)",
-                    borderBottom: "0.5px solid var(--color-border-tertiary)",
-                  }}
-                >
-                  {c.name}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, ri) => (
-              <tr key={ri} style={{ background: ri % 2 === 0 ? "transparent" : "var(--color-background-secondary)" }}>
-                {cols.map((c) => (
-                  <td key={c.name} style={{ padding: "3px 6px", color: "var(--color-text-primary)" }}>
-                    {String(row[c.name] ?? "")}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span style={{ fontSize: 10, color: "var(--color-muted-foreground)", opacity: 0.5 }}>No data — run a query</span>
       </div>
     );
   }
 
-  if (type === "image") {
-    return (
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          border: "0.5px dashed var(--color-border-secondary)",
-          margin: 8,
-          borderRadius: "var(--border-radius-sm)",
-          background: "var(--color-background-secondary)",
-          gap: 6,
-          color: "var(--color-muted-foreground)",
-          fontSize: 11,
-        }}
-      >
-        <Image size={16} />
-        Drop image or paste URL
-      </div>
-    );
-  }
-
-  if (type === "markdown" || type === "html") {
-    return (
-      <div style={{ flex: 1, padding: "8px 10px" }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-text-primary)", marginBottom: 4 }}>
-          {panel.title}
-        </div>
-        <div style={{ fontSize: 10, color: "var(--color-muted-foreground)" }}>
-          {panel.markdownContent
-            ? panel.markdownContent.slice(0, 120)
-            : "Text content…"}
-        </div>
-      </div>
-    );
-  }
-
-  // Default: bar chart preview
-  const barHeights = result?.rows.slice(0, 8).map(() => Math.random() * 80 + 16) ?? [60, 80, 50, 90, 40, 70, 55, 85];
+  // Generic chart placeholder
   return (
-    <div style={{ flex: 1, padding: "8px", display: "flex", flexDirection: "column", gap: 4 }}>
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          alignItems: "flex-end",
-          gap: 3,
-          height: 96,
-        }}
-      >
-        {barHeights.map((h, i) => (
-          <div
-            key={i}
-            style={{
-              flex: 1,
-              height: `${h}%`,
-              borderRadius: "2px 2px 0 0",
-              background: "var(--color-background-info)",
-              minWidth: 4,
-            }}
-          />
-        ))}
-      </div>
+    <div style={{ flex: 1, padding: 8, display: "flex", alignItems: "flex-end", gap: 3 }}>
+      {[60, 80, 50, 90, 40, 70, 55, 85].map((h, i) => (
+        <div key={i} style={{ flex: 1, height: `${h}%`, borderRadius: "2px 2px 0 0", background: "var(--color-background-secondary)", opacity: 0.5 }} />
+      ))}
     </div>
   );
 }
@@ -440,6 +357,7 @@ function typeIcon(type: string | undefined) {
   switch (type) {
     case "table":
     case "grouped-table":
+    case "crosstab":
       return <Table2 size={11} style={{ color: "var(--color-muted-foreground)", flexShrink: 0 }} />;
     case "kpi":
       return <LayoutDashboard size={11} style={{ color: "var(--color-muted-foreground)", flexShrink: 0 }} />;
@@ -447,6 +365,8 @@ function typeIcon(type: string | undefined) {
       return <Image size={11} style={{ color: "var(--color-muted-foreground)", flexShrink: 0 }} />;
     case "markdown":
     case "html":
+    case "embed":
+    case "custom":
       return <Type size={11} style={{ color: "var(--color-muted-foreground)", flexShrink: 0 }} />;
     default:
       return <BarChart2 size={11} style={{ color: "var(--color-muted-foreground)", flexShrink: 0 }} />;
@@ -592,16 +512,14 @@ export function CanvasArea({
           backgroundImage:
             "radial-gradient(circle, var(--color-border-tertiary) 1px, transparent 1px)",
           backgroundSize: "20px 20px",
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "center",
           padding: 24,
           cursor: activeTool !== "select" ? "crosshair" : "default",
         }}
         onClick={handleCanvasClick}
       >
-        {/* Page frame */}
-        <div style={{ position: "relative", flexShrink: 0 }}>
+        {/* Page frame — margin:auto centers it when canvas is wider than the page;
+            when the page is wider the container scrolls both ways correctly. */}
+        <div style={{ position: "relative", margin: "0 auto", width: "fit-content" }}>
           {/* Page label */}
           <div
             style={{

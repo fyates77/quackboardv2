@@ -40,6 +40,17 @@ interface DashboardState {
     panelId: string,
     sql: string,
   ) => void;
+  updatePanelBuilderConfig: (
+    dashboardId: string,
+    panelId: string,
+    config: import("@/types/builder").BuilderConfig,
+    generatedSql: string,
+  ) => void;
+  setPanelQueryMode: (
+    dashboardId: string,
+    panelId: string,
+    mode: "builder" | "sql",
+  ) => void;
   updatePanelApplyFilters: (
     dashboardId: string,
     panelId: string,
@@ -340,6 +351,46 @@ export const useDashboardStore = create<DashboardState>()(
                 panels: dash.panels.map((p) =>
                   p.id === panelId
                     ? { ...p, query: { ...p.query, sql } }
+                    : p,
+                ),
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          };
+        }),
+
+      updatePanelBuilderConfig: (dashboardId, panelId, config, generatedSql) =>
+        set((state) => {
+          const dash = state.dashboards[dashboardId];
+          if (!dash) return state;
+          return {
+            dashboards: {
+              ...state.dashboards,
+              [dashboardId]: {
+                ...dash,
+                panels: dash.panels.map((p) =>
+                  p.id === panelId
+                    ? { ...p, query: { ...p.query, sql: generatedSql, mode: "builder" as const, builderConfig: config } }
+                    : p,
+                ),
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          };
+        }),
+
+      setPanelQueryMode: (dashboardId, panelId, mode) =>
+        set((state) => {
+          const dash = state.dashboards[dashboardId];
+          if (!dash) return state;
+          return {
+            dashboards: {
+              ...state.dashboards,
+              [dashboardId]: {
+                ...dash,
+                panels: dash.panels.map((p) =>
+                  p.id === panelId
+                    ? { ...p, query: { ...p.query, mode } }
                     : p,
                 ),
                 updatedAt: new Date().toISOString(),

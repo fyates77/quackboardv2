@@ -154,6 +154,47 @@ function DashboardEditorPage() {
     return () => { cancelled = true; };
   }, [drilldownKey, engine, handleQueryResult, handleLoadingChange]);
 
+  // Re-run when panel SQL changes (e.g. builder config updates)
+  const prevSqlMapRef = useRef<Record<string, string>>({});
+  const sqlKey = (dashboard?.panels ?? []).map((p) => `${p.id}:${p.query.sql}`).join("|");
+  useEffect(() => {
+    const panels = panelsRef.current;
+    const changed = panels.filter((p) => {
+      const prev = prevSqlMapRef.current[p.id];
+      // undefined means panel is new — treat as changed so first SQL assignment runs
+      return p.query.sql.trim() && prev !== p.query.sql;
+    });
+    // Update tracking for all current panels
+    for (const p of panels) prevSqlMapRef.current[p.id] = p.query.sql;
+    if (!changed.length) return;
+    let cancelled = false;
+    (async () => {
+      for (const panel of changed) {
+        if (cancelled) break;
+        const sql = panel.applyDashboardFilters !== false
+          ? applyFilters(panel.query.sql, filtersRef.current, filterValuesRef.current, paramValuesRef.current)
+          : panel.query.sql;
+        handleLoadingChange(panel.id, true);
+        try {
+          const result = await engine.executeQuery(sql);
+          if (!cancelled) { queryCache.set(sql, result); handleQueryResult(panel.id, result); }
+        } catch { /* skip */ } finally { handleLoadingChange(panel.id, false); }
+      }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sqlKey, engine, handleQueryResult, handleLoadingChange]);
+
+  // Initialize SQL tracking on first render (panels already loaded)
+  useEffect(() => {
+    for (const p of panelsRef.current) {
+      if (prevSqlMapRef.current[p.id] === undefined) {
+        prevSqlMapRef.current[p.id] = p.query.sql;
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -220,6 +261,7 @@ function DashboardEditorPage() {
       queryResults={queryResults}
       loadingPanels={loadingPanels}
       onAddPanel={handleAddPanel}
+      onQueryResult={handleQueryResult}
     />
   );
 }

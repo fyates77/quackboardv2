@@ -55,7 +55,9 @@ import type {
   NavBarItemType,
 } from "@/types/dashboard";
 import { useDashboardStore } from "@/stores/dashboard-store";
+import { useEngine } from "@/engine/use-engine";
 import { createId } from "@/lib/id";
+import { buildCrosstabPivotSQL, isCrosstabReady } from "@/lib/crosstab-sql";
 
 /* ─── Props ──────────────────────────────────────────────────── */
 
@@ -65,6 +67,8 @@ interface VizConfigPanelProps {
   onChangeType: (type: VisualizationType) => void;
   onChangeMapping: (mapping: ColumnMapping) => void;
   onChangeOptions: (options: VisualizationOptions) => void;
+  /** Called with the generated PIVOT SQL whenever crosstab config is complete */
+  onChangeSql?: (sql: string) => void;
   dashboardId?: string;
 }
 
@@ -118,14 +122,44 @@ export function VizConfigPanel({
   onChangeType,
   onChangeMapping,
   onChangeOptions,
+  onChangeSql,
   dashboardId,
 }: VizConfigPanelProps) {
   const columns = result?.columns.map((c) => c.name) ?? [];
   const { mapping, options } = config;
   const t = config.type;
+  const engine = useEngine();
+  const [crosstabSourceRunning, setCrosstabSourceRunning] = useState(false);
 
   const isPlot = PLOT_TYPES.has(t);
   const isXY = XY_TYPES.has(t);
+
+  /** Merge a patch into options, then regenerate PIVOT SQL if crosstab is fully configured */
+  function updateCrosstabOption(patch: Partial<VisualizationOptions>) {
+    const merged = { ...options, ...patch };
+    onChangeOptions(merged);
+    if (isCrosstabReady(merged) && onChangeSql) {
+      onChangeSql(buildCrosstabPivotSQL({
+        sourceSql: merged.crosstabSourceSql!,
+        rowDim: merged.crosstabRowDim!,
+        colDim: merged.crosstabColDim!,
+        measure: merged.crosstabMeasure!,
+        aggFn: merged.crosstabAggregation ?? "sum",
+      }));
+    }
+  }
+
+  async function handleRunCrosstabSource() {
+    const sql = options.crosstabSourceSql?.trim();
+    if (!sql) return;
+    setCrosstabSourceRunning(true);
+    try {
+      const r = await engine.executeQuery(sql);
+      const cols = r.columns.map((c) => c.name);
+      updateCrosstabOption({ crosstabSourceColumns: cols });
+    } catch { /* ignore — user will see no columns */ }
+    finally { setCrosstabSourceRunning(false); }
+  }
 
   const updateMapping = (patch: Partial<ColumnMapping>) => {
     onChangeMapping({ ...mapping, ...patch });
@@ -488,26 +522,51 @@ export function VizConfigPanel({
             />
           )}
 
-          {/* Crosstab: row dim / col dim / measure mapping */}
+          {/* Crosstab: source SQL + dim/measure pickers → generates DuckDB PIVOT SQL */}
           {t === "crosstab" && (
             <>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Source Query</label>
+                <textarea
+                  className="w-full rounded border bg-background px-2 py-1.5 font-mono text-xs outline-none focus:ring-1 focus:ring-ring resize-none"
+                  rows={4}
+                  placeholder={"SELECT region, product, revenue\nFROM sales"}
+                  value={options.crosstabSourceSql ?? ""}
+                  onChange={(e) => updateCrosstabOption({ crosstabSourceSql: e.target.value })}
+                  spellCheck={false}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs w-full"
+                  disabled={!options.crosstabSourceSql?.trim() || crosstabSourceRunning}
+                  onClick={handleRunCrosstabSource}
+                >
+                  {crosstabSourceRunning ? "Running…" : "Preview columns"}
+                </Button>
+                {options.crosstabSourceColumns && (
+                  <p className="text-[10px] text-muted-foreground">
+                    Columns: {options.crosstabSourceColumns.join(", ")}
+                  </p>
+                )}
+              </div>
               <ColumnSelect
-                label="Row Dimension"
+                label="Row Dimension (GROUP BY)"
                 value={options.crosstabRowDim}
-                columns={columns}
-                onChange={(v) => updateOptions({ crosstabRowDim: v })}
+                columns={options.crosstabSourceColumns ?? []}
+                onChange={(v) => updateCrosstabOption({ crosstabRowDim: v })}
               />
               <ColumnSelect
-                label="Column Dimension"
+                label="Column Dimension (PIVOT ON)"
                 value={options.crosstabColDim}
-                columns={columns}
-                onChange={(v) => updateOptions({ crosstabColDim: v })}
+                columns={options.crosstabSourceColumns ?? []}
+                onChange={(v) => updateCrosstabOption({ crosstabColDim: v })}
               />
               <ColumnSelect
-                label="Measure Value"
+                label="Measure (USING)"
                 value={options.crosstabMeasure}
-                columns={columns}
-                onChange={(v) => updateOptions({ crosstabMeasure: v })}
+                columns={options.crosstabSourceColumns ?? []}
+                onChange={(v) => updateCrosstabOption({ crosstabMeasure: v })}
               />
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">Aggregation</label>
@@ -518,13 +577,27 @@ export function VizConfigPanel({
                       variant={(options.crosstabAggregation ?? "sum") === fn ? "default" : "outline"}
                       size="sm"
                       className="text-xs"
-                      onClick={() => updateOptions({ crosstabAggregation: fn })}
+                      onClick={() => updateCrosstabOption({ crosstabAggregation: fn })}
                     >
                       {fn}
                     </Button>
                   ))}
                 </div>
               </div>
+              {isCrosstabReady(options) && (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Generated SQL</label>
+                  <pre className="rounded border bg-muted px-2 py-1.5 font-mono text-[10px] text-muted-foreground whitespace-pre overflow-auto">
+                    {buildCrosstabPivotSQL({
+                      sourceSql: options.crosstabSourceSql!,
+                      rowDim: options.crosstabRowDim!,
+                      colDim: options.crosstabColDim!,
+                      measure: options.crosstabMeasure!,
+                      aggFn: options.crosstabAggregation ?? "sum",
+                    })}
+                  </pre>
+                </div>
+              )}
             </>
           )}
 

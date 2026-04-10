@@ -201,24 +201,12 @@ function ToolButton({
     <button
       title={title}
       onClick={onClick}
+      className="ed-btn"
+      data-active={active ? "true" : "false"}
       style={{
         width: 28,
         height: 28,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        border: "none",
         borderRadius: "var(--border-radius-md)",
-        background: active ? "var(--color-background-secondary)" : "transparent",
-        color: active ? "var(--color-text-primary)" : "var(--color-muted-foreground)",
-        cursor: "pointer",
-        transition: "background 0.1s",
-      }}
-      onMouseEnter={(e) => {
-        if (!active) (e.currentTarget as HTMLButtonElement).style.background = "var(--color-background-secondary)";
-      }}
-      onMouseLeave={(e) => {
-        if (!active) (e.currentTarget as HTMLButtonElement).style.background = "transparent";
       }}
     >
       {children}

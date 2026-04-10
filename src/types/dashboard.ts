@@ -206,6 +206,9 @@ export interface ThresholdRule {
 export interface PanelQuery {
   sql: string;
   dataSourceId: string | null;
+  /** "builder" = SQL is generated from builderConfig; "sql" = user owns SQL directly */
+  mode?: "builder" | "sql";
+  builderConfig?: import("./builder").BuilderConfig;
 }
 
 export interface LayoutItem {
@@ -551,6 +554,10 @@ export interface VisualizationOptions {
   crosstabShowColTotals?: boolean;
   /** Per-column format overrides keyed by col-dimension value */
   crosstabColumnFormats?: Record<string, ColumnFormat>;
+  /** Raw SELECT that feeds the DuckDB PIVOT — stored separately from panel.query.sql */
+  crosstabSourceSql?: string;
+  /** Column names from the last successful run of crosstabSourceSql — populates dim/measure pickers */
+  crosstabSourceColumns?: string[];
   // ─── Nav Bar ───────────────────────────────────────────────────────
   /** Nav bar configuration (used when visualization type is "nav-bar") */
   navBarConfig?: NavBarConfig;

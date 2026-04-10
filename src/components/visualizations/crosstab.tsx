@@ -18,26 +18,16 @@ function lerpHex(a: string, b: string, t: number): string {
   try {
     const [r1, g1, b1] = parse(a);
     const [r2, g2, b2] = parse(b);
-    const r = Math.round(r1 + (r2 - r1) * t);
-    const g = Math.round(g1 + (g2 - g1) * t);
-    const bv = Math.round(b1 + (b2 - b1) * t);
-    return `rgb(${r},${g},${bv})`;
+    return `rgb(${Math.round(r1 + (r2 - r1) * t)},${Math.round(g1 + (g2 - g1) * t)},${Math.round(b1 + (b2 - b1) * t)})`;
   } catch {
     return "";
   }
 }
 
-/** Pick a legible text color (black or white) for a given background */
 function contrastColor(bg: string): string {
   try {
-    const [r, g, b] = bg
-      .replace(/^rgb\(/, "")
-      .replace(/\)$/, "")
-      .split(",")
-      .map(Number);
-    // Relative luminance
-    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-    return lum > 140 ? "#111111" : "#ffffff";
+    const [r, g, b] = bg.replace(/^rgb\(/, "").replace(/\)$/, "").split(",").map(Number);
+    return 0.299 * r + 0.587 * g + 0.114 * b > 140 ? "#111111" : "#ffffff";
   } catch {
     return "#111111";
   }
@@ -54,29 +44,23 @@ function fmtValue(value: number | null, fmt?: ColumnFormat): string {
   return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
-type AggFn = "sum" | "avg" | "count" | "min" | "max";
-
-function aggregate(vals: number[], fn: AggFn): number {
-  if (vals.length === 0) return 0;
-  switch (fn) {
-    case "sum":
-      return vals.reduce((a, b) => a + b, 0);
-    case "avg":
-      return vals.reduce((a, b) => a + b, 0) / vals.length;
-    case "count":
-      return vals.length;
-    case "min":
-      return Math.min(...vals);
-    case "max":
-      return Math.max(...vals);
-  }
-}
-
+/**
+ * Renders a DuckDB PIVOT result.
+ * Expected shape: column[0] = row-dim header, columns[1..n] = pivoted measure values.
+ * All aggregation is done by DuckDB — this component only renders.
+ */
 export function CrosstabTable({ result, options, onClickDatum }: CrosstabProps) {
-  const rowDimCol = options.crosstabRowDim ?? result.columns[0]?.name ?? "";
-  const colDimCol = options.crosstabColDim ?? result.columns[1]?.name ?? "";
-  const measureCol = options.crosstabMeasure ?? result.columns[2]?.name ?? "";
-  const aggFn: AggFn = options.crosstabAggregation ?? "sum";
+  if (result.columns.length < 2) {
+    return (
+      <div className="flex h-full items-center justify-center text-xs text-muted-foreground p-4 text-center">
+        Configure the source query, row dimension, column dimension, and measure to generate a pivot table.
+      </div>
+    );
+  }
+
+  const rowDimCol = result.columns[0].name;
+  const dataCols = result.columns.slice(1);
+
   const colorScale = options.crosstabColorScale ?? false;
   const colorMin = options.crosstabColorMin ?? "#ffffff";
   const colorMax = options.crosstabColorMax ?? "#2563eb";
@@ -84,96 +68,38 @@ export function CrosstabTable({ result, options, onClickDatum }: CrosstabProps) 
   const showColTotals = options.crosstabShowColTotals ?? false;
   const colFmts = options.crosstabColumnFormats ?? {};
 
-  const { rowValues, colValues, pivot, rowTotals, colTotals, grandTotal, minVal, maxVal } = useMemo(() => {
-    if (!rowDimCol || !colDimCol || !measureCol) {
-      return { rowValues: [], colValues: [], pivot: new Map(), rowTotals: new Map(), colTotals: new Map(), grandTotal: 0, minVal: 0, maxVal: 0 };
-    }
-
-    // Collect unique row/col dimension values (preserve insertion order)
-    const rowSet = new Map<unknown, true>();
-    const colSet = new Map<unknown, true>();
-    for (const row of result.rows) {
-      rowSet.set(row[rowDimCol], true);
-      colSet.set(row[colDimCol], true);
-    }
-    const rowValues = [...rowSet.keys()];
-    const colValues = [...colSet.keys()];
-
-    // Build rawMap: rowVal -> colVal -> number[]
-    const rawMap = new Map<unknown, Map<unknown, number[]>>();
-    for (const row of result.rows) {
-      const rv = row[rowDimCol];
-      const cv = row[colDimCol];
-      const mv = row[measureCol];
-      if (!rawMap.has(rv)) rawMap.set(rv, new Map());
-      const inner = rawMap.get(rv)!;
-      if (!inner.has(cv)) inner.set(cv, []);
-      if (typeof mv === "number") inner.get(cv)!.push(mv);
-    }
-
-    // Aggregate pivot
-    const pivot = new Map<unknown, Map<unknown, number | null>>();
+  const { minVal, maxVal, colTotals, grandTotal } = useMemo(() => {
     let minVal = Infinity;
     let maxVal = -Infinity;
+    const colTotals: Record<string, number> = {};
 
-    for (const rv of rowValues) {
-      const inner = rawMap.get(rv);
-      const rowMap = new Map<unknown, number | null>();
-      pivot.set(rv, rowMap);
-      for (const cv of colValues) {
-        const vals = inner?.get(cv) ?? [];
-        const agg = vals.length > 0 ? aggregate(vals, aggFn) : null;
-        rowMap.set(cv, agg);
-        if (agg !== null) {
-          minVal = Math.min(minVal, agg);
-          maxVal = Math.max(maxVal, agg);
+    for (const col of dataCols) colTotals[col.name] = 0;
+
+    for (const row of result.rows) {
+      for (const col of dataCols) {
+        const v = row[col.name];
+        if (typeof v === "number") {
+          if (v < minVal) minVal = v;
+          if (v > maxVal) maxVal = v;
+          colTotals[col.name] += v;
         }
       }
     }
 
-    // Row totals
-    const rowTotals = new Map<unknown, number>();
-    for (const [rv, rowMap] of pivot) {
-      const vals = [...rowMap.values()].filter((v): v is number => v !== null);
-      rowTotals.set(rv, aggregate(vals, aggFn === "count" ? "sum" : aggFn));
-    }
-
-    // Col totals
-    const colTotals = new Map<unknown, number>();
-    for (const cv of colValues) {
-      const vals = rowValues.map((rv) => pivot.get(rv)?.get(cv) ?? null).filter((v): v is number => v !== null);
-      colTotals.set(cv, aggregate(vals, aggFn === "count" ? "sum" : aggFn));
-    }
-
-    const grandTotal = [...rowTotals.values()].reduce((a, b) => a + b, 0);
-
     return {
-      rowValues,
-      colValues,
-      pivot,
-      rowTotals,
-      colTotals,
-      grandTotal,
       minVal: minVal === Infinity ? 0 : minVal,
       maxVal: maxVal === -Infinity ? 0 : maxVal,
+      colTotals,
+      grandTotal: Object.values(colTotals).reduce((a, b) => a + b, 0),
     };
-  }, [result.rows, rowDimCol, colDimCol, measureCol, aggFn]);
+  }, [result.rows, dataCols]);
 
   function getCellBg(value: number | null): string | undefined {
     if (!colorScale || value === null || minVal === maxVal) return undefined;
-    const t = (value - minVal) / (maxVal - minVal);
-    return lerpHex(colorMin, colorMax, t);
+    return lerpHex(colorMin, colorMax, (value - minVal) / (maxVal - minVal));
   }
 
-  if (!rowDimCol || !colDimCol || !measureCol) {
-    return (
-      <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-        Map row dimension, column dimension, and measure columns to render crosstab.
-      </div>
-    );
-  }
-
-  if (rowValues.length === 0) {
+  if (result.rows.length === 0) {
     return (
       <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
         No data
@@ -185,18 +111,17 @@ export function CrosstabTable({ result, options, onClickDatum }: CrosstabProps) 
     <div className="flex h-full flex-col overflow-hidden">
       <div className="flex-1 overflow-auto">
         <table className="border-collapse text-xs">
-          {/* ── Header row ── */}
+          {/* Header */}
           <thead className="sticky top-0 z-10">
             <tr className="border-b border-border bg-muted/70">
-              {/* Row-dim header */}
               <th className="whitespace-nowrap px-3 py-1.5 text-left font-semibold tracking-wide border-r border-border">
                 {rowDimCol}
               </th>
-              {colValues.map((cv) => {
-                const fmt = colFmts[String(cv)];
+              {dataCols.map((col) => {
+                const fmt = colFmts[col.name];
                 return (
                   <th
-                    key={String(cv)}
+                    key={col.name}
                     className="whitespace-nowrap px-3 py-1.5 text-right font-semibold tracking-wide"
                     style={{
                       textAlign: fmt?.align ?? "right",
@@ -205,7 +130,7 @@ export function CrosstabTable({ result, options, onClickDatum }: CrosstabProps) 
                       backgroundColor: fmt?.bgColor,
                     }}
                   >
-                    {fmt?.label ?? String(cv ?? "—")}
+                    {fmt?.label ?? col.name}
                   </th>
                 );
               })}
@@ -217,64 +142,54 @@ export function CrosstabTable({ result, options, onClickDatum }: CrosstabProps) 
             </tr>
           </thead>
 
-          {/* ── Data rows ── */}
+          {/* Data rows */}
           <tbody>
-            {rowValues.map((rv, ri) => {
-              const rowMap = pivot.get(rv);
-              const rowTotal = rowTotals.get(rv);
+            {result.rows.map((row, ri) => {
+              const rowVal = row[rowDimCol];
+              const rowTotal = showRowTotals
+                ? dataCols.reduce((sum, col) => {
+                    const v = row[col.name];
+                    return sum + (typeof v === "number" ? v : 0);
+                  }, 0)
+                : 0;
+
               return (
                 <tr
-                  key={String(rv)}
+                  key={ri}
                   className={[
                     "border-b border-border/30 last:border-0 transition-colors",
                     ri % 2 === 1 ? "bg-muted/15" : "",
                     onClickDatum ? "cursor-pointer hover:bg-muted/40" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
+                  ].filter(Boolean).join(" ")}
                 >
-                  {/* Row dimension label */}
                   <td
                     className="whitespace-nowrap border-r border-border/50 px-3 py-1.5 font-medium"
-                    onClick={
-                      onClickDatum
-                        ? () => onClickDatum({ column: rowDimCol, value: rv })
-                        : undefined
-                    }
+                    onClick={onClickDatum ? () => onClickDatum({ column: rowDimCol, value: rowVal }) : undefined}
                   >
-                    {rv == null ? <span className="text-muted-foreground/60">—</span> : String(rv)}
+                    {rowVal == null ? <span className="text-muted-foreground/60">—</span> : String(rowVal)}
                   </td>
 
-                  {/* Measure cells */}
-                  {colValues.map((cv) => {
-                    const value = rowMap?.get(cv) ?? null;
-                    const fmt = colFmts[String(cv)];
-                    const bg = getCellBg(value);
+                  {dataCols.map((col) => {
+                    const value = row[col.name];
+                    const num = typeof value === "number" ? value : null;
+                    const fmt = colFmts[col.name];
+                    const bg = getCellBg(num);
                     const fg = bg ? contrastColor(bg) : fmt?.textColor;
                     return (
                       <td
-                        key={String(cv)}
+                        key={col.name}
                         className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums"
-                        style={{
-                          backgroundColor: bg ?? fmt?.bgColor,
-                          color: fg,
-                          textAlign: fmt?.align ?? "right",
-                        }}
-                        onClick={
-                          onClickDatum
-                            ? () => onClickDatum({ column: colDimCol, value: cv })
-                            : undefined
-                        }
+                        style={{ backgroundColor: bg ?? fmt?.bgColor, color: fg, textAlign: fmt?.align ?? "right" }}
+                        onClick={onClickDatum ? () => onClickDatum({ column: col.name, value }) : undefined}
                       >
-                        {fmtValue(value, fmt)}
+                        {fmtValue(num, fmt)}
                       </td>
                     );
                   })}
 
-                  {/* Row total */}
                   {showRowTotals && (
                     <td className="whitespace-nowrap border-l border-border/50 px-3 py-1.5 text-right font-semibold tabular-nums text-muted-foreground">
-                      {fmtValue(rowTotal ?? null, undefined)}
+                      {fmtValue(rowTotal, undefined)}
                     </td>
                   )}
                 </tr>
@@ -287,16 +202,15 @@ export function CrosstabTable({ result, options, onClickDatum }: CrosstabProps) 
                 <td className="whitespace-nowrap border-r border-border/50 px-3 py-1.5 text-muted-foreground italic">
                   Total
                 </td>
-                {colValues.map((cv) => {
-                  const value = colTotals.get(cv) ?? null;
-                  const fmt = colFmts[String(cv)];
+                {dataCols.map((col) => {
+                  const fmt = colFmts[col.name];
                   return (
                     <td
-                      key={String(cv)}
+                      key={col.name}
                       className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums"
                       style={{ textAlign: fmt?.align ?? "right" }}
                     >
-                      {fmtValue(value, fmt)}
+                      {fmtValue(colTotals[col.name] ?? null, fmt)}
                     </td>
                   );
                 })}
@@ -312,7 +226,7 @@ export function CrosstabTable({ result, options, onClickDatum }: CrosstabProps) 
       </div>
 
       <div className="border-t border-border/30 px-3 py-1 text-[10px] text-muted-foreground">
-        {rowValues.length} rows × {colValues.length} columns
+        {result.rows.length} rows × {dataCols.length} columns
         {colorScale && ` · color scale: ${minVal.toLocaleString()} → ${maxVal.toLocaleString()}`}
       </div>
     </div>

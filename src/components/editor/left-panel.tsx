@@ -8,6 +8,17 @@ import {
   Image,
   LayoutDashboard,
   Eye,
+  TrendingUp,
+  PieChart,
+  Box,
+  Grid3x3,
+  Filter,
+  Network,
+  Activity,
+  GitMerge,
+  Code,
+  Navigation,
+  ExternalLink,
 } from "lucide-react";
 import type { Dashboard } from "@/types/dashboard";
 import type { RailTab } from "./editor-shell";
@@ -23,13 +34,50 @@ interface LeftPanelProps {
   onAddPanel: (type?: string) => void;
 }
 
-const ADD_ELEMENT_TYPES = [
-  { type: "text", icon: <Type size={16} />, label: "Text" },
-  { type: "bar", icon: <BarChart2 size={16} />, label: "Chart" },
-  { type: "table", icon: <Table2 size={16} />, label: "Table" },
-  { type: "kpi", icon: <LayoutDashboard size={16} />, label: "KPI" },
-  { type: "image", icon: <Image size={16} />, label: "Image" },
-  { type: "section", icon: <RectangleHorizontal size={16} />, label: "Section" },
+const ADD_ELEMENT_GROUPS = [
+  {
+    label: "Charts",
+    items: [
+      { type: "bar", icon: <BarChart2 size={13} />, label: "Bar" },
+      { type: "line", icon: <TrendingUp size={13} />, label: "Line" },
+      { type: "area", icon: <Activity size={13} />, label: "Area" },
+      { type: "scatter", icon: <Activity size={13} />, label: "Scatter" },
+      { type: "pie", icon: <PieChart size={13} />, label: "Pie" },
+      { type: "histogram", icon: <BarChart2 size={13} />, label: "Histogram" },
+      { type: "box", icon: <Box size={13} />, label: "Box" },
+      { type: "heatmap", icon: <Grid3x3 size={13} />, label: "Heatmap" },
+      { type: "waffle", icon: <Grid3x3 size={13} />, label: "Waffle" },
+      { type: "combo", icon: <BarChart2 size={13} />, label: "Combo" },
+      { type: "funnel", icon: <Filter size={13} />, label: "Funnel" },
+      { type: "treemap", icon: <LayoutDashboard size={13} />, label: "Treemap" },
+      { type: "tree", icon: <Network size={13} />, label: "Tree" },
+      { type: "density", icon: <Activity size={13} />, label: "Density" },
+      { type: "difference", icon: <TrendingUp size={13} />, label: "Diff" },
+      { type: "flow", icon: <GitMerge size={13} />, label: "Flow" },
+      { type: "network", icon: <Network size={13} />, label: "Network" },
+    ],
+  },
+  {
+    label: "Tables",
+    items: [
+      { type: "table", icon: <Table2 size={13} />, label: "Table" },
+      { type: "grouped-table", icon: <Table2 size={13} />, label: "Grouped" },
+      { type: "crosstab", icon: <Table2 size={13} />, label: "Crosstab" },
+    ],
+  },
+  {
+    label: "Content",
+    items: [
+      { type: "kpi", icon: <LayoutDashboard size={13} />, label: "KPI" },
+      { type: "markdown", icon: <Type size={13} />, label: "Text" },
+      { type: "image", icon: <Image size={13} />, label: "Image" },
+      { type: "embed", icon: <ExternalLink size={13} />, label: "Embed" },
+      { type: "html", icon: <Code size={13} />, label: "HTML" },
+      { type: "custom", icon: <Code size={13} />, label: "Custom" },
+      { type: "nav-bar", icon: <Navigation size={13} />, label: "Nav Bar" },
+      { type: "section", icon: <RectangleHorizontal size={13} />, label: "Section" },
+    ],
+  },
 ];
 
 function typeIcon(type: VisualizationType | undefined) {
@@ -39,6 +87,18 @@ function typeIcon(type: VisualizationType | undefined) {
     case "area":
     case "scatter":
     case "pie":
+    case "histogram":
+    case "box":
+    case "heatmap":
+    case "waffle":
+    case "combo":
+    case "funnel":
+    case "treemap":
+    case "tree":
+    case "density":
+    case "difference":
+    case "flow":
+    case "network":
       return <BarChart2 size={12} style={{ color: "var(--color-muted-foreground)", flexShrink: 0 }} />;
     case "table":
     case "grouped-table":
@@ -50,7 +110,11 @@ function typeIcon(type: VisualizationType | undefined) {
       return <Image size={12} style={{ color: "var(--color-muted-foreground)", flexShrink: 0 }} />;
     case "markdown":
     case "html":
+    case "embed":
+    case "custom":
       return <Type size={12} style={{ color: "var(--color-muted-foreground)", flexShrink: 0 }} />;
+    case "nav-bar":
+      return <Navigation size={12} style={{ color: "var(--color-muted-foreground)", flexShrink: 0 }} />;
     default:
       return <RectangleHorizontal size={12} style={{ color: "var(--color-muted-foreground)", flexShrink: 0 }} />;
   }
@@ -139,6 +203,8 @@ function LayersTab({
             <button
               key={panel.id}
               onClick={() => onSelectElement(panel.id)}
+              className="ed-layer-row"
+              data-active={isSelected ? "true" : "false"}
               style={{
                 width: "100%",
                 display: "flex",
@@ -146,17 +212,9 @@ function LayersTab({
                 gap: 6,
                 padding: "4px 10px 4px 26px",
                 border: "none",
-                background: isSelected ? "var(--color-background-info)" : "transparent",
                 color: isSelected ? "var(--color-text-info)" : "var(--color-text-primary)",
-                cursor: "pointer",
                 fontSize: 12,
                 textAlign: "left",
-              }}
-              onMouseEnter={(e) => {
-                if (!isSelected) (e.currentTarget as HTMLButtonElement).style.background = "var(--color-background-secondary)";
-              }}
-              onMouseLeave={(e) => {
-                if (!isSelected) (e.currentTarget as HTMLButtonElement).style.background = "transparent";
               }}
             >
               {typeIcon(panel.visualization?.type)}
@@ -193,42 +251,57 @@ function LayersTab({
       <div
         style={{
           borderTop: "0.5px solid var(--color-border-tertiary)",
-          padding: "8px",
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: 4,
+          maxHeight: 220,
+          overflowY: "auto",
+          padding: "6px 8px 8px",
         }}
       >
-        {ADD_ELEMENT_TYPES.map(({ type, icon, label }) => (
-          <button
-            key={type}
-            onClick={() => onAddPanel(type)}
-            title={`Add ${label}`}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 3,
-              padding: "6px 4px",
-              border: "0.5px solid var(--color-border-tertiary)",
-              borderRadius: "var(--border-radius-md)",
-              background: "transparent",
-              color: "var(--color-muted-foreground)",
-              cursor: "pointer",
-              fontSize: 10,
-              transition: "background 0.1s",
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.background = "var(--color-background-secondary)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-            }}
-          >
-            {icon}
-            {label}
-          </button>
+        {ADD_ELEMENT_GROUPS.map(({ label, items }) => (
+          <div key={label}>
+            <div
+              style={{
+                fontSize: 9,
+                fontWeight: 600,
+                color: "var(--color-muted-foreground)",
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                padding: "4px 2px 3px",
+              }}
+            >
+              {label}
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: 3,
+                marginBottom: 4,
+              }}
+            >
+              {items.map(({ type, icon, label: itemLabel }) => (
+                <button
+                  key={type}
+                  onClick={() => onAddPanel(type)}
+                  title={`Add ${itemLabel}`}
+                  className="ed-add-btn"
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 2,
+                    padding: "5px 4px",
+                    borderRadius: "var(--border-radius-sm)",
+                    color: "var(--color-muted-foreground)",
+                    fontSize: 9,
+                  }}
+                >
+                  {icon}
+                  {itemLabel}
+                </button>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
     </div>

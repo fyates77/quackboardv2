@@ -333,6 +333,7 @@ export function PanelEditor({
             onChangeType={handleChangeType}
             onChangeMapping={handleChangeMapping}
             onChangeOptions={handleChangeOptions}
+            onChangeSql={(sql) => updatePanelQuery(dashboardId, panel.id, sql)}
             dashboardId={dashboardId}
           />
         </TabsContent>

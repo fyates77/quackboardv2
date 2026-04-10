@@ -26,6 +26,7 @@ export interface EditorShellProps {
   queryResults: Map<string, QueryResult>;
   loadingPanels: Set<string>;
   onAddPanel: (type?: string) => void;
+  onQueryResult: (panelId: string, result: QueryResult) => void;
 }
 
 export function EditorShell({
@@ -44,6 +45,7 @@ export function EditorShell({
   queryResults,
   loadingPanels,
   onAddPanel,
+  onQueryResult,
 }: EditorShellProps) {
   const selectedPanel = selectedId
     ? dashboard.panels.find((p) => p.id === selectedId) ?? null
@@ -112,6 +114,7 @@ export function EditorShell({
           activeTab={activeRightTab}
           onTabChange={onRightTabChange}
           queryResults={queryResults}
+          onQueryResult={onQueryResult}
         />
       </div>
     </div>
