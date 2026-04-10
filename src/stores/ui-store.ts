@@ -9,7 +9,6 @@ interface UIState {
 
   setTheme: (theme: "light" | "dark") => void;
   toggleTheme: () => void;
-  setSidebarOpen: (open: boolean) => void;
   setActivePanelId: (id: string | null) => void;
 }
 
@@ -32,7 +31,6 @@ export const useUIStore = create<UIState>()(
           return { theme: next };
         }),
 
-      setSidebarOpen: (open) => set({ sidebarOpen: open }),
       setActivePanelId: (id) => set({ activePanelId: id }),
     }),
     {

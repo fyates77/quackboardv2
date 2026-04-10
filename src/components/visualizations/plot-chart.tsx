@@ -634,6 +634,39 @@ export function PlotChart({ type, result, mapping, options, annotations, onClick
         }
       }
 
+      // --- Axis borders ---
+      if (options.chartFrame) {
+        marks.push(Plot.frame({ strokeOpacity: 0.3 }));
+      }
+
+      // --- Custom grid marks (independent of axis ticks) ---
+      const xHasCustomGrid =
+        options.xGrid &&
+        (options.xGridColor || options.xGridWidth != null || options.xGridOpacity != null || options.xGridTicks != null);
+      const yHasCustomGrid =
+        options.yGrid &&
+        (options.yGridColor || options.yGridWidth != null || options.yGridOpacity != null || options.yGridTicks != null);
+      if (xHasCustomGrid) {
+        marks.push(
+          Plot.gridX({
+            ...(options.xGridTicks != null ? { ticks: options.xGridTicks } : {}),
+            stroke: options.xGridColor ?? "currentColor",
+            strokeWidth: options.xGridWidth ?? 1,
+            strokeOpacity: options.xGridOpacity ?? 0.1,
+          }),
+        );
+      }
+      if (yHasCustomGrid) {
+        marks.push(
+          Plot.gridY({
+            ...(options.yGridTicks != null ? { ticks: options.yGridTicks } : {}),
+            stroke: options.yGridColor ?? "currentColor",
+            strokeWidth: options.yGridWidth ?? 1,
+            strokeOpacity: options.yGridOpacity ?? 0.1,
+          }),
+        );
+      }
+
       // --- Preserve SQL ORDER BY: compute categorical domain in data first-appearance order ---
       // Observable Plot collects domain values in first-appearance order by default, but
       // explicitly setting `domain` guarantees it — preventing any internal re-sorting.
@@ -652,6 +685,21 @@ export function PlotChart({ type, result, mapping, options, annotations, onClick
           ? catAxis as string[]
           : undefined;
 
+      // --- Data-type preset → tickFormat (xDataType/yDataType override if no explicit format) ---
+      const DATA_TYPE_FORMAT: Record<string, string> = {
+        number: ",.2f",
+        integer: ",.0f",
+        percent: ".0%",
+        currency: "$,.0f",
+        compact: "~s",
+        "date-month": "%b %Y",
+        "date-year": "%Y",
+      };
+      const xEffectiveFormat = options.xTickFormat
+        || (options.xDataType && options.xDataType !== "auto" ? DATA_TYPE_FORMAT[options.xDataType] : undefined);
+      const yEffectiveFormat = options.yTickFormat
+        || (options.yDataType && options.yDataType !== "auto" ? DATA_TYPE_FORMAT[options.yDataType] : undefined);
+
       // --- Plot options ---
       const plotOptions: Plot.PlotOptions = {
         marks,
@@ -666,24 +714,28 @@ export function PlotChart({ type, result, mapping, options, annotations, onClick
         style: {
           background: "transparent",
           overflow: "visible",
+          ...(options.axisFontSize ? { fontSize: `${options.axisFontSize}px` } : {}),
         },
         x: {
           ...(xCatDomain ? { domain: xCatDomain } : {}),
           label: options.xLabel ?? null,
-          grid: options.xGrid ?? false,
+          // Use custom grid mark if grid style is customised, otherwise fall back to scale.grid
+          grid: xHasCustomGrid ? false : (options.xGrid ?? false),
           ...(options.xScaleType ? { type: options.xScaleType } : {}),
           ...(options.xReverse ? { reverse: true } : {}),
-          ...(options.xTickFormat ? { tickFormat: options.xTickFormat } : {}),
+          ...(xEffectiveFormat ? { tickFormat: xEffectiveFormat } : {}),
+          ...(options.xAxisLine ? { line: true } : {}),
         },
         y: {
           ...(yCatDomain ? { domain: yCatDomain } : {}),
           label: options.yLabel ?? null,
-          grid: options.yGrid ?? false,
+          grid: yHasCustomGrid ? false : (options.yGrid ?? false),
           ...(options.yScaleType ? { type: options.yScaleType } : {}),
           ...(options.yZero ? { zero: true } : {}),
           ...(options.yNice !== false ? { nice: true } : {}),
           ...(options.yReverse ? { reverse: true } : {}),
-          ...(options.yTickFormat ? { tickFormat: options.yTickFormat } : {}),
+          ...(yEffectiveFormat ? { tickFormat: yEffectiveFormat } : {}),
+          ...(options.yAxisLine ? { line: true } : {}),
         },
       };
 
@@ -695,8 +747,19 @@ export function PlotChart({ type, result, mapping, options, annotations, onClick
         plotOptions.fy = { label: null };
       }
 
+      // Series color overrides (per-series custom colors, highest priority)
+      if (colorField && options.seriesColors && Object.keys(options.seriesColors).length > 0) {
+        const domain = [...new Set(plotData.map((d: Record<string, unknown>) => String(d[colorField])))] as string[];
+        const range = domain.map((s) => options.seriesColors![s] ?? "steelblue");
+        plotOptions.color = {
+          domain,
+          range,
+          legend: options.showLegend !== false,
+          ...(options.legendTitle ? { label: options.legendTitle } : {}),
+        };
+      }
       // Color scheme
-      if (type === "heatmap") {
+      else if (type === "heatmap") {
         // Sequential scheme for numeric fill
         plotOptions.color = {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any

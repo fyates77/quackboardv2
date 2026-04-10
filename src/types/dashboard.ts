@@ -515,6 +515,30 @@ export interface VisualizationOptions {
   yTickFormat?: string;
   /** X-axis tick format string (d3-format or d3-time-format, e.g. "%b %Y") */
   xTickFormat?: string;
+  /** Axis tick font size in px */
+  axisFontSize?: number;
+  /** Axis data-type preset — sets a tick format shortcut independent of raw data type */
+  xDataType?: "auto" | "number" | "integer" | "percent" | "currency" | "compact" | "date-month" | "date-year";
+  yDataType?: "auto" | "number" | "integer" | "percent" | "currency" | "compact" | "date-month" | "date-year";
+  /** Show axis line at the axis origin (Plot x.line / y.line) */
+  xAxisLine?: boolean;
+  yAxisLine?: boolean;
+  /** Draw a rectangular frame around the entire plot area */
+  chartFrame?: boolean;
+  /** Per-series fill color overrides, keyed by series name (color column value or y-column name) */
+  seriesColors?: Record<string, string>;
+  /** Custom grid line color (CSS color) */
+  xGridColor?: string;
+  yGridColor?: string;
+  /** Grid line stroke width */
+  xGridWidth?: number;
+  yGridWidth?: number;
+  /** Grid line opacity (0–1) */
+  xGridOpacity?: number;
+  yGridOpacity?: number;
+  /** Number of grid lines independent of axis ticks (undefined = follow ticks) */
+  xGridTicks?: number;
+  yGridTicks?: number;
   /** Chart margin overrides in px */
   marginLeft?: number;
   marginRight?: number;

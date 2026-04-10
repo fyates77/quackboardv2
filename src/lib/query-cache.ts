@@ -39,9 +39,6 @@ class QueryCache {
     }
   }
 
-  clear(): void {
-    this.cache.clear();
-  }
 }
 
 export const queryCache = new QueryCache();

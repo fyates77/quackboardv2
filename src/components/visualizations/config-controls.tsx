@@ -111,6 +111,110 @@ export function CollapsibleSection({
   );
 }
 
+/* ─── Slider + Number input ─────────────────────────────────── */
+
+export function SliderWithNumber({
+  label,
+  value,
+  min,
+  max,
+  step,
+  defaultValue,
+  toDisplay,
+  onChange,
+}: {
+  label: string;
+  value: number | undefined;
+  min: number;
+  max: number;
+  step: number;
+  defaultValue: number;
+  /** Optional formatter for the number input display (e.g. as %) */
+  toDisplay?: (v: number) => string;
+  onChange: (v: number) => void;
+}) {
+  const v = value ?? defaultValue;
+  return (
+    <div className="space-y-0.5">
+      <label className="text-[10px] text-muted-foreground">{label}</label>
+      <div className="flex items-center gap-1.5">
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={v}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="flex-1"
+        />
+        <input
+          type="number"
+          min={min}
+          max={max}
+          step={step}
+          value={toDisplay ? toDisplay(v) : v}
+          onChange={(e) => {
+            const n = Number(e.target.value);
+            if (!isNaN(n)) onChange(n);
+          }}
+          className="w-14 rounded border bg-background px-1.5 py-1 text-xs text-right outline-none focus:ring-1 focus:ring-ring"
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ─── Hex Color Input ────────────────────────────────────────── */
+
+export function HexColorInput({
+  label,
+  value,
+  placeholder,
+  onChange,
+  onClear,
+}: {
+  label: string;
+  value: string | undefined;
+  placeholder?: string;
+  onChange: (v: string) => void;
+  onClear?: () => void;
+}) {
+  const displayed = value ?? placeholder ?? "#6b7280";
+  return (
+    <div className="space-y-0.5">
+      <label className="text-[10px] text-muted-foreground">{label}</label>
+      <div className="flex items-center gap-1.5">
+        <input
+          type="color"
+          value={displayed}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-7 w-8 flex-shrink-0 cursor-pointer rounded border"
+        />
+        <input
+          type="text"
+          value={value ?? ""}
+          placeholder={placeholder ?? "#6b7280"}
+          onChange={(e) => {
+            const raw = e.target.value;
+            if (raw === "") { onClear?.(); return; }
+            // Accept partial hex while typing, apply when complete
+            if (/^#[0-9a-fA-F]{0,6}$/.test(raw)) onChange(raw);
+          }}
+          className="flex-1 rounded border bg-background px-2 py-1 font-mono text-xs outline-none focus:ring-1 focus:ring-ring"
+        />
+        {onClear && value && (
+          <button
+            className="text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+            onClick={onClear}
+          >
+            ×
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ─── Color Scheme Picker ────────────────────────────────────── */
 
 export interface SchemeOption {

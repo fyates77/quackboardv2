@@ -19,7 +19,6 @@ interface DataSourceState {
   }) => string;
 
   removeDataSource: (id: string) => void;
-  updateRowCount: (id: string, rowCount: number) => void;
 }
 
 export const useDataSourceStore = create<DataSourceState>()(
@@ -45,15 +44,6 @@ export const useDataSourceStore = create<DataSourceState>()(
         set((state) => {
           const { [id]: _, ...rest } = state.dataSources;
           return { dataSources: rest };
-        }),
-
-      updateRowCount: (id, rowCount) =>
-        set((state) => {
-          const ds = state.dataSources[id];
-          if (!ds) return state;
-          return {
-            dataSources: { ...state.dataSources, [id]: { ...ds, rowCount } },
-          };
         }),
     }),
     {

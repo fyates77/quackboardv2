@@ -39,6 +39,8 @@ import {
   MultiColumnSelect,
   CollapsibleSection,
   ColorSchemePicker,
+  SliderWithNumber,
+  HexColorInput,
   CATEGORICAL_SCHEMES,
   SEQUENTIAL_SCHEMES,
 } from "./config-controls";
@@ -1079,86 +1081,44 @@ export function VizConfigPanel({
 
               {/* Mark color — only when no color column drives fill */}
               {!mapping.color && (t === "bar" || t === "line" || t === "area" || t === "scatter" || t === "histogram" || t === "waffle") && (
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Mark Color</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={options.markColor ?? "#6b7280"}
-                      onChange={(e) => updateOptions({ markColor: e.target.value })}
-                      className="h-7 w-10 cursor-pointer rounded border"
-                    />
-                    <button
-                      className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                      onClick={() => updateOptions({ markColor: undefined })}
-                    >
-                      Reset
-                    </button>
-                  </div>
-                </div>
+                <HexColorInput
+                  label="Mark Color"
+                  value={options.markColor}
+                  placeholder="#6b7280"
+                  onChange={(v) => updateOptions({ markColor: v })}
+                  onClear={() => updateOptions({ markColor: undefined })}
+                />
               )}
 
               {/* Bar polish */}
               {t === "bar" && (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <label className="text-xs font-medium text-muted-foreground">Bar Style</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-0.5">
-                      <label className="text-[10px] text-muted-foreground">Corner radius</label>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="range" min={0} max={12} step={1}
-                          value={options.barCornerRadius ?? 0}
-                          onChange={(e) => updateOptions({ barCornerRadius: Number(e.target.value) || undefined })}
-                          className="flex-1"
-                        />
-                        <span className="w-5 text-right text-[10px] text-muted-foreground">{options.barCornerRadius ?? 0}</span>
-                      </div>
-                    </div>
-                    <div className="space-y-0.5">
-                      <label className="text-[10px] text-muted-foreground">Bar spacing</label>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="range" min={0} max={8} step={0.5}
-                          value={options.barInset ?? 0}
-                          onChange={(e) => updateOptions({ barInset: Number(e.target.value) || undefined })}
-                          className="flex-1"
-                        />
-                        <span className="w-5 text-right text-[10px] text-muted-foreground">{options.barInset ?? 0}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-0.5">
-                      <label className="text-[10px] text-muted-foreground">Fill opacity</label>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="range" min={0.1} max={1} step={0.05}
-                          value={options.barFillOpacity ?? 1}
-                          onChange={(e) => updateOptions({ barFillOpacity: Number(e.target.value) })}
-                          className="flex-1"
-                        />
-                        <span className="w-7 text-right text-[10px] text-muted-foreground">{(options.barFillOpacity ?? 1).toFixed(2)}</span>
-                      </div>
-                    </div>
-                    <div className="space-y-0.5">
-                      <label className="text-[10px] text-muted-foreground">Stroke color</label>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="color"
-                          value={options.barStroke ?? "#6b7280"}
-                          onChange={(e) => updateOptions({ barStroke: e.target.value })}
-                          className="h-6 w-8 cursor-pointer rounded border"
-                        />
-                        <button
-                          className="text-[10px] text-muted-foreground hover:text-foreground"
-                          onClick={() => updateOptions({ barStroke: undefined })}
-                        >
-                          Off
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                  <SliderWithNumber
+                    label="Corner radius (px)"
+                    value={options.barCornerRadius}
+                    min={0} max={20} step={1} defaultValue={0}
+                    onChange={(v) => updateOptions({ barCornerRadius: v || undefined })}
+                  />
+                  <SliderWithNumber
+                    label="Bar spacing (px)"
+                    value={options.barInset}
+                    min={0} max={12} step={0.5} defaultValue={0}
+                    onChange={(v) => updateOptions({ barInset: v || undefined })}
+                  />
+                  <SliderWithNumber
+                    label="Fill opacity (%)"
+                    value={options.barFillOpacity != null ? Math.round(options.barFillOpacity * 100) : undefined}
+                    min={5} max={100} step={5} defaultValue={100}
+                    onChange={(v) => updateOptions({ barFillOpacity: v / 100 })}
+                  />
+                  <HexColorInput
+                    label="Stroke color (outline)"
+                    value={options.barStroke}
+                    placeholder="#6b7280"
+                    onChange={(v) => updateOptions({ barStroke: v })}
+                    onClear={() => updateOptions({ barStroke: undefined })}
+                  />
                 </div>
               )}
 
@@ -1340,12 +1300,54 @@ export function VizConfigPanel({
                   onChange={(s) => updateOptions({ colorScheme: s })}
                 />
               ) : null}
+
+              {/* Series-by-series color overrides */}
+              {(() => {
+                const seriesNames: string[] =
+                  Array.isArray(mapping.y) && mapping.y.length > 1
+                    ? (mapping.y as string[])
+                    : mapping.color && result
+                    ? [...new Set(result.rows.map((r) => String((r as Record<string, unknown>)[mapping.color!])))].slice(0, 24)
+                    : [];
+                if (seriesNames.length === 0) return null;
+                return (
+                  <CollapsibleSection title="Per-Series Colors">
+                    <div className="space-y-2">
+                      {seriesNames.map((name) => (
+                        <HexColorInput
+                          key={name}
+                          label={name}
+                          value={(options.seriesColors ?? {})[name]}
+                          onChange={(v) =>
+                            updateOptions({
+                              seriesColors: { ...(options.seriesColors ?? {}), [name]: v },
+                            })
+                          }
+                          onClear={() => {
+                            const next = { ...(options.seriesColors ?? {}) };
+                            delete next[name];
+                            updateOptions({ seriesColors: Object.keys(next).length ? next : undefined });
+                          }}
+                        />
+                      ))}
+                      {Object.keys(options.seriesColors ?? {}).length > 0 && (
+                        <button
+                          className="text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+                          onClick={() => updateOptions({ seriesColors: undefined })}
+                        >
+                          Clear all overrides
+                        </button>
+                      )}
+                    </div>
+                  </CollapsibleSection>
+                );
+              })()}
             </div>
           )}
 
           {/* ── Axes tab ── */}
           {configTab === "axes" && (
-            <div className="space-y-3 p-3">
+            <div className="space-y-4 p-3">
               {/* Axis labels */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
@@ -1368,43 +1370,223 @@ export function VizConfigPanel({
                 </div>
               </div>
 
-              {/* Tick formats */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">X Tick Format</label>
-                  <input
-                    className="w-full rounded border bg-background px-2 py-1.5 text-sm font-mono outline-none focus:ring-1 focus:ring-ring"
-                    placeholder="%b %Y"
-                    value={options.xTickFormat ?? ""}
-                    onChange={(e) => updateOptions({ xTickFormat: e.target.value || undefined })}
-                  />
+              {/* Axis font size */}
+              <SliderWithNumber
+                label="Tick font size (px)"
+                value={options.axisFontSize}
+                min={8} max={18} step={1} defaultValue={11}
+                onChange={(v) => updateOptions({ axisFontSize: v === 11 ? undefined : v })}
+              />
+
+              {/* ── Tick format: X ── */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">X Axis Format</label>
+                <div className="flex flex-wrap gap-1">
+                  {([
+                    { label: "Auto", value: "auto" },
+                    { label: "1,234", value: "integer" },
+                    { label: "1,234.56", value: "number" },
+                    { label: "45%", value: "percent" },
+                    { label: "$1,234", value: "currency" },
+                    { label: "1.2M", value: "compact" },
+                    { label: "Jan 2024", value: "date-month" },
+                    { label: "2024", value: "date-year" },
+                  ] as const).map(({ label, value }) => (
+                    <button
+                      key={value}
+                      onClick={() => {
+                        const fmt: Record<string, string> = {
+                          integer: ",.0f", number: ",.2f", percent: ".0%",
+                          currency: "$,.0f", compact: "~s",
+                          "date-month": "%b %Y", "date-year": "%Y",
+                        };
+                        updateOptions({
+                          xDataType: value,
+                          xTickFormat: value === "auto" ? undefined : fmt[value],
+                        });
+                      }}
+                      style={{
+                        fontSize: 10, padding: "2px 7px", border: "1px solid",
+                        borderColor: (options.xDataType ?? "auto") === value
+                          ? "var(--color-text-primary)" : "var(--color-border-tertiary)",
+                        background: (options.xDataType ?? "auto") === value
+                          ? "var(--color-background-secondary)" : "transparent",
+                        color: (options.xDataType ?? "auto") === value
+                          ? "var(--color-text-primary)" : "var(--color-muted-foreground)",
+                        borderRadius: 4, cursor: "pointer",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Y Tick Format</label>
-                  <input
-                    className="w-full rounded border bg-background px-2 py-1.5 text-sm font-mono outline-none focus:ring-1 focus:ring-ring"
-                    placeholder=",.0f"
-                    value={options.yTickFormat ?? ""}
-                    onChange={(e) => updateOptions({ yTickFormat: e.target.value || undefined })}
-                  />
+                <input
+                  className="w-full rounded border bg-background px-2 py-1.5 text-xs font-mono outline-none focus:ring-1 focus:ring-ring"
+                  placeholder="Custom: %b %Y  or  $,.2f"
+                  value={options.xTickFormat ?? ""}
+                  onChange={(e) => updateOptions({ xTickFormat: e.target.value || undefined, xDataType: e.target.value ? undefined : options.xDataType })}
+                />
+              </div>
+
+              {/* ── Tick format: Y ── */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Y Axis Format</label>
+                <div className="flex flex-wrap gap-1">
+                  {([
+                    { label: "Auto", value: "auto" },
+                    { label: "1,234", value: "integer" },
+                    { label: "1,234.56", value: "number" },
+                    { label: "45%", value: "percent" },
+                    { label: "$1,234", value: "currency" },
+                    { label: "1.2M", value: "compact" },
+                    { label: "Jan 2024", value: "date-month" },
+                    { label: "2024", value: "date-year" },
+                  ] as const).map(({ label, value }) => (
+                    <button
+                      key={value}
+                      onClick={() => {
+                        const fmt: Record<string, string> = {
+                          integer: ",.0f", number: ",.2f", percent: ".0%",
+                          currency: "$,.0f", compact: "~s",
+                          "date-month": "%b %Y", "date-year": "%Y",
+                        };
+                        updateOptions({
+                          yDataType: value,
+                          yTickFormat: value === "auto" ? undefined : fmt[value],
+                        });
+                      }}
+                      style={{
+                        fontSize: 10, padding: "2px 7px", border: "1px solid",
+                        borderColor: (options.yDataType ?? "auto") === value
+                          ? "var(--color-text-primary)" : "var(--color-border-tertiary)",
+                        background: (options.yDataType ?? "auto") === value
+                          ? "var(--color-background-secondary)" : "transparent",
+                        color: (options.yDataType ?? "auto") === value
+                          ? "var(--color-text-primary)" : "var(--color-muted-foreground)",
+                        borderRadius: 4, cursor: "pointer",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  className="w-full rounded border bg-background px-2 py-1.5 text-xs font-mono outline-none focus:ring-1 focus:ring-ring"
+                  placeholder="Custom: ,.0f  or  $,.2f"
+                  value={options.yTickFormat ?? ""}
+                  onChange={(e) => updateOptions({ yTickFormat: e.target.value || undefined, yDataType: e.target.value ? undefined : options.yDataType })}
+                />
+              </div>
+
+              {/* Border / frame */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Borders</label>
+                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                  <label className="flex items-center gap-2 text-xs">
+                    <input type="checkbox" checked={options.xAxisLine ?? false}
+                      onChange={(e) => updateOptions({ xAxisLine: e.target.checked || undefined })} />
+                    X axis line
+                  </label>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input type="checkbox" checked={options.yAxisLine ?? false}
+                      onChange={(e) => updateOptions({ yAxisLine: e.target.checked || undefined })} />
+                    Y axis line
+                  </label>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input type="checkbox" checked={options.chartFrame ?? false}
+                      onChange={(e) => updateOptions({ chartFrame: e.target.checked || undefined })} />
+                    Full frame (box)
+                  </label>
                 </div>
               </div>
-              <p className="text-[10px] text-muted-foreground -mt-1">
-                d3-format (<code className="font-mono">$,.2f</code>, <code className="font-mono">~s</code>) or d3-time-format (<code className="font-mono">%b %Y</code>)
-              </p>
 
-              {/* Grid */}
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2 text-xs">
-                  <input type="checkbox" checked={options.xGrid ?? false}
-                    onChange={(e) => updateOptions({ xGrid: e.target.checked })} />
-                  X grid
-                </label>
-                <label className="flex items-center gap-2 text-xs">
-                  <input type="checkbox" checked={options.yGrid ?? false}
-                    onChange={(e) => updateOptions({ yGrid: e.target.checked })} />
-                  Y grid
-                </label>
+              {/* Grid controls */}
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">Grid</label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 text-xs">
+                    <input type="checkbox" checked={options.xGrid ?? false}
+                      onChange={(e) => updateOptions({ xGrid: e.target.checked || undefined })} />
+                    X grid
+                  </label>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input type="checkbox" checked={options.yGrid ?? false}
+                      onChange={(e) => updateOptions({ yGrid: e.target.checked || undefined })} />
+                    Y grid
+                  </label>
+                </div>
+                {(options.xGrid || options.yGrid) && (
+                  <CollapsibleSection title="Grid style">
+                    <div className="space-y-3">
+                      {options.xGrid && (
+                        <div className="space-y-2">
+                          <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">X Grid</div>
+                          <HexColorInput
+                            label="Color"
+                            value={options.xGridColor}
+                            placeholder="currentColor"
+                            onChange={(v) => updateOptions({ xGridColor: v })}
+                            onClear={() => updateOptions({ xGridColor: undefined })}
+                          />
+                          <SliderWithNumber
+                            label="Width (px)" value={options.xGridWidth}
+                            min={0.5} max={4} step={0.5} defaultValue={1}
+                            onChange={(v) => updateOptions({ xGridWidth: v })}
+                          />
+                          <SliderWithNumber
+                            label="Opacity (%)"
+                            value={options.xGridOpacity != null ? Math.round(options.xGridOpacity * 100) : undefined}
+                            min={5} max={100} step={5} defaultValue={10}
+                            onChange={(v) => updateOptions({ xGridOpacity: v / 100 })}
+                          />
+                          <div className="space-y-0.5">
+                            <label className="text-[10px] text-muted-foreground">Tick count (blank = auto)</label>
+                            <input
+                              type="number" min={1} max={50}
+                              className="w-full rounded border bg-background px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-ring"
+                              placeholder="Auto"
+                              value={options.xGridTicks ?? ""}
+                              onChange={(e) => updateOptions({ xGridTicks: e.target.value ? Number(e.target.value) : undefined })}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {options.yGrid && (
+                        <div className="space-y-2">
+                          <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Y Grid</div>
+                          <HexColorInput
+                            label="Color"
+                            value={options.yGridColor}
+                            placeholder="currentColor"
+                            onChange={(v) => updateOptions({ yGridColor: v })}
+                            onClear={() => updateOptions({ yGridColor: undefined })}
+                          />
+                          <SliderWithNumber
+                            label="Width (px)" value={options.yGridWidth}
+                            min={0.5} max={4} step={0.5} defaultValue={1}
+                            onChange={(v) => updateOptions({ yGridWidth: v })}
+                          />
+                          <SliderWithNumber
+                            label="Opacity (%)"
+                            value={options.yGridOpacity != null ? Math.round(options.yGridOpacity * 100) : undefined}
+                            min={5} max={100} step={5} defaultValue={10}
+                            onChange={(v) => updateOptions({ yGridOpacity: v / 100 })}
+                          />
+                          <div className="space-y-0.5">
+                            <label className="text-[10px] text-muted-foreground">Tick count (blank = auto)</label>
+                            <input
+                              type="number" min={1} max={50}
+                              className="w-full rounded border bg-background px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-ring"
+                              placeholder="Auto"
+                              value={options.yGridTicks ?? ""}
+                              onChange={(e) => updateOptions({ yGridTicks: e.target.value ? Number(e.target.value) : undefined })}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </CollapsibleSection>
+                )}
               </div>
 
               {/* Scale types */}
