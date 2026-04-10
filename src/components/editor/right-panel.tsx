@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronRight, Play, AlertCircle, Plus, X, Code, Sliders, Maximize2 } from "lucide-react";
+import { ChevronRight, Play, AlertCircle, Plus, X, Code, Sliders, Maximize2, Bold, Italic, Link, Heading1, Heading2, Heading3, List, ListOrdered, Minus, Braces } from "lucide-react";
 import { useDashboardStore } from "@/stores/dashboard-store";
 import { useEngine } from "@/engine/use-engine";
 import { buildSQL } from "@/lib/query-builder";
@@ -199,10 +199,12 @@ function DesignTab({
   dashboardId,
   panel,
   queryResult,
+  queryResults,
 }: {
   dashboardId: string;
   panel: Panel;
   queryResult: QueryResult | null;
+  queryResults: Map<string, QueryResult>;
 }) {
   const updatePanel = useDashboardStore((s) => s.updatePanel);
   const updatePanelVisualization = useDashboardStore((s) => s.updatePanelVisualization);
@@ -312,14 +314,35 @@ function DesignTab({
       {/* ── Content editors — shown only for the relevant panel types ── */}
 
       {vizType === "markdown" && (
-        <Section title="Markdown Content">
-          <p style={{ fontSize: 10, color: "var(--color-muted-foreground)", marginBottom: 6, lineHeight: 1.5 }}>
-            Supports standard Markdown: headings, bold, italic, lists, tables, code blocks, and links.
-          </p>
+        <Section title="Text Content">
+          {/* Formatting toolbar */}
+          <div style={{
+            display: "flex", flexWrap: "wrap", gap: 2, padding: 4,
+            border: "0.5px solid var(--color-border-secondary)",
+            borderRadius: "var(--border-radius-sm)",
+            background: "var(--color-background-secondary)",
+            marginBottom: 6,
+          }}>
+            <TbBtn title="Bold (**text**)" onClick={() => insertMd(panel.id, "**", "**", "bold text")}><Bold size={11} /></TbBtn>
+            <TbBtn title="Italic (*text*)" onClick={() => insertMd(panel.id, "*", "*", "italic text")}><Italic size={11} /></TbBtn>
+            <TbSep />
+            <TbBtn title="Heading 1" onClick={() => insertMd(panel.id, "# ", "", "Heading")}><Heading1 size={11} /></TbBtn>
+            <TbBtn title="Heading 2" onClick={() => insertMd(panel.id, "## ", "", "Heading")}><Heading2 size={11} /></TbBtn>
+            <TbBtn title="Heading 3" onClick={() => insertMd(panel.id, "### ", "", "Heading")}><Heading3 size={11} /></TbBtn>
+            <TbSep />
+            <TbBtn title="Bullet list" onClick={() => insertMd(panel.id, "- ", "", "List item")}><List size={11} /></TbBtn>
+            <TbBtn title="Numbered list" onClick={() => insertMd(panel.id, "1. ", "", "List item")}><ListOrdered size={11} /></TbBtn>
+            <TbBtn title="Divider (---)" onClick={() => insertMd(panel.id, "\n---\n", "", "")}><Minus size={11} /></TbBtn>
+            <TbBtn title="Link" onClick={() => insertMd(panel.id, "[", "](url)", "link text")}><Link size={11} /></TbBtn>
+            <TbBtn title="Code block" onClick={() => insertMd(panel.id, "\n```\n", "\n```", "code")}><Braces size={11} /></TbBtn>
+            <TbSep />
+            <VariableInserter panelId={panel.id} queryResults={queryResults} />
+          </div>
           <textarea
+            id={`md-editor-${panel.id}`}
             value={panel.markdownContent ?? DEFAULT_MARKDOWN}
             onChange={(e) => updatePanel(dashboardId, panel.id, { markdownContent: e.target.value })}
-            spellCheck={false}
+            spellCheck
             style={{
               width: "100%", fontSize: 11, fontFamily: "var(--font-mono)", lineHeight: 1.6,
               padding: "6px 8px", border: "0.5px solid var(--color-border-secondary)",
@@ -328,6 +351,9 @@ function DesignTab({
               boxSizing: "border-box",
             }}
           />
+          <p style={{ fontSize: 9, color: "var(--color-muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
+            Typography controls are in the <strong>Design</strong> tab above.
+          </p>
         </Section>
       )}
 
@@ -1069,6 +1095,124 @@ function InteractTab({ panel }: { panel: Panel }) {
   );
 }
 
+// ── Text editor toolbar helpers ────────────────────────────────────────────
+
+function TbBtn({ title, onClick, children }: { title: string; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      title={title}
+      onClick={onClick}
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "center",
+        width: 22, height: 22, border: "none", borderRadius: "var(--border-radius-sm)",
+        background: "transparent", color: "var(--color-muted-foreground)",
+        cursor: "pointer", flexShrink: 0,
+      }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--color-background-primary)"; (e.currentTarget as HTMLButtonElement).style.color = "var(--color-text-primary)"; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "var(--color-muted-foreground)"; }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function TbSep() {
+  return <div style={{ width: 1, height: 14, background: "var(--color-border-secondary)", margin: "0 2px", flexShrink: 0 }} />;
+}
+
+/** Insert markdown syntax at cursor position in the textarea */
+function insertMd(panelId: string, before: string, after: string, placeholder: string) {
+  const el = document.getElementById(`md-editor-${panelId}`) as HTMLTextAreaElement | null;
+  if (!el) return;
+  const start = el.selectionStart;
+  const end = el.selectionEnd;
+  const selected = el.value.slice(start, end) || placeholder;
+  const newVal = el.value.slice(0, start) + before + selected + after + el.value.slice(end);
+  // Trigger React's synthetic onChange by writing via native setter
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")?.set;
+  setter?.call(el, newVal);
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+  requestAnimationFrame(() => {
+    el.focus();
+    el.selectionStart = start + before.length;
+    el.selectionEnd = start + before.length + selected.length;
+  });
+}
+
+/** Popover that lists live {{panels.id.column}} variables from other panels */
+function VariableInserter({
+  panelId,
+  queryResults,
+}: {
+  panelId: string;
+  queryResults: Map<string, QueryResult>;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const entries: Array<{ pid: string; col: string }> = [];
+  for (const [pid, result] of queryResults.entries()) {
+    if (pid === panelId) continue;
+    entries.push({ pid, col: "rowCount" });
+    for (const col of result.columns) {
+      entries.push({ pid, col: col.name });
+    }
+  }
+
+  return (
+    <div style={{ position: "relative" }}>
+      <TbBtn title="Insert data variable" onClick={() => setOpen((v) => !v)}>
+        <span style={{ fontSize: 10, fontWeight: 600, fontFamily: "var(--font-mono)" }}>{"{}"}</span>
+      </TbBtn>
+      {open && (
+        <>
+          <div style={{ position: "fixed", inset: 0, zIndex: 40 }} onClick={() => setOpen(false)} />
+          <div style={{
+            position: "absolute", left: 0, top: 26, zIndex: 50,
+            width: 240, maxHeight: 220, overflowY: "auto",
+            background: "var(--color-background-primary)",
+            border: "0.5px solid var(--color-border-secondary)",
+            borderRadius: "var(--border-radius-sm)",
+            boxShadow: "0 8px 24px hsla(220,30%,10%,0.25)",
+            padding: 6,
+          }}>
+            {entries.length === 0 ? (
+              <p style={{ fontSize: 10, color: "var(--color-muted-foreground)", padding: "4px 6px", lineHeight: 1.5 }}>
+                No other panels with data yet. Run a query in another panel first.
+              </p>
+            ) : (
+              <>
+                <p style={{ fontSize: 9, fontWeight: 600, color: "var(--color-muted-foreground)", padding: "2px 6px 6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  Insert live value
+                </p>
+                {entries.map(({ pid, col }) => (
+                  <button
+                    key={`${pid}.${col}`}
+                    onClick={() => {
+                      insertMd(panelId, `{{panels.${pid}.${col}}}`, "", "");
+                      setOpen(false);
+                    }}
+                    style={{
+                      display: "block", width: "100%", textAlign: "left",
+                      padding: "3px 6px", fontSize: 10, fontFamily: "var(--font-mono)",
+                      border: "none", borderRadius: "var(--border-radius-sm)",
+                      background: "transparent", color: "var(--color-text-primary)",
+                      cursor: "pointer",
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--color-background-secondary)"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+                  >
+                    {`{{panels.${pid}.${col}}}`}
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 export function RightPanel({
@@ -1149,6 +1293,7 @@ export function RightPanel({
                 dashboardId={dashboardId}
                 panel={selectedPanel}
                 queryResult={queryResults.get(selectedPanel.id) ?? null}
+                queryResults={queryResults}
               />
             )}
             {activeTab === "data" && (

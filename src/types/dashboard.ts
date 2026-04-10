@@ -436,6 +436,30 @@ export interface ColumnMapping {
   target?: string;
 }
 
+/** Typography and layout options for the Text (markdown) panel */
+export interface TextStyle {
+  /** Font family — one of the presets or a custom CSS font-family string */
+  fontFamily?: string;
+  /** Base font size in px (default 14) */
+  fontSize?: number;
+  /** CSS font-weight: "300" | "400" | "500" | "600" | "700" | "800" */
+  fontWeight?: string;
+  /** CSS color for body text */
+  color?: string;
+  /** Text alignment */
+  align?: "left" | "center" | "right" | "justify";
+  /** Line height multiplier (default 1.6) */
+  lineHeight?: number;
+  /** Letter spacing in em (default 0) */
+  letterSpacing?: number;
+  /** Constrain text width for readability */
+  maxWidth?: "none" | "narrow" | "prose" | "wide";
+  /** Heading color override (defaults to same as body color) */
+  headingColor?: string;
+  /** Heading font weight (default "700") */
+  headingWeight?: string;
+}
+
 export interface VisualizationOptions {
   stacked?: boolean;
   horizontal?: boolean;
@@ -632,4 +656,7 @@ export interface VisualizationOptions {
   // ─── Vega-Lite ─────────────────────────────────────────────────────
   /** JSON Vega-Lite spec string (used when visualization type is "vega-lite") */
   vegaLiteSpec?: string;
+  // ─── Text Panel ────────────────────────────────────────────────────────────
+  /** Typography and layout for the Text (markdown) panel */
+  textStyle?: TextStyle;
 }

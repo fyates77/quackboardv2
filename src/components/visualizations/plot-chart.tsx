@@ -131,7 +131,12 @@ export function PlotChart({ type, result, mapping, options, annotations, onClick
             ...(options.barStroke ? { stroke: options.barStroke, strokeWidth: 1 } : {}),
             ...(options.barFillOpacity != null ? { fillOpacity: options.barFillOpacity } : {}),
             ...(options.barCornerRadius != null ? { rx: options.barCornerRadius } : {}),
-            ...(options.barInset != null ? { inset: options.barInset } : {}),
+            // Inset only the cross-axis sides so spacing only affects bar width, not position
+            ...(options.barInset != null
+              ? options.horizontal
+                ? { insetTop: options.barInset, insetBottom: options.barInset }
+                : { insetLeft: options.barInset, insetRight: options.barInset }
+              : {}),
           };
           if (options.horizontal) {
             marks.push(
@@ -685,6 +690,10 @@ export function PlotChart({ type, result, mapping, options, annotations, onClick
           ? catAxis as string[]
           : undefined;
 
+      // --- Safety: detect d3-time-format strings (e.g. "%b %Y", "%Y") vs d3-format strings ---
+      // Time-format specifiers start with %, d3-format % always appears after digits (e.g. ".0%")
+      const isTimeFmt = (s: string) => /%[YymbBdaAeHIpMSXxcjqQZz]/.test(s);
+
       // --- Data-type preset → tickFormat (xDataType/yDataType override if no explicit format) ---
       const DATA_TYPE_FORMAT: Record<string, string> = {
         number: ",.2f",
@@ -721,7 +730,10 @@ export function PlotChart({ type, result, mapping, options, annotations, onClick
           label: options.xLabel ?? null,
           // Use custom grid mark if grid style is customised, otherwise fall back to scale.grid
           grid: xHasCustomGrid ? false : (options.xGrid ?? false),
-          ...(options.xScaleType ? { type: options.xScaleType } : {}),
+          // Auto-coerce to time scale when a time-format string is detected (prevents d3-format crash)
+          ...(xEffectiveFormat && isTimeFmt(xEffectiveFormat)
+            ? { type: "time" as const }
+            : options.xScaleType ? { type: options.xScaleType } : {}),
           ...(options.xReverse ? { reverse: true } : {}),
           ...(xEffectiveFormat ? { tickFormat: xEffectiveFormat } : {}),
           ...(options.xAxisLine ? { line: true } : {}),
@@ -730,7 +742,9 @@ export function PlotChart({ type, result, mapping, options, annotations, onClick
           ...(yCatDomain ? { domain: yCatDomain } : {}),
           label: options.yLabel ?? null,
           grid: yHasCustomGrid ? false : (options.yGrid ?? false),
-          ...(options.yScaleType ? { type: options.yScaleType } : {}),
+          ...(yEffectiveFormat && isTimeFmt(yEffectiveFormat)
+            ? { type: "time" as const }
+            : options.yScaleType ? { type: options.yScaleType } : {}),
           ...(options.yZero ? { zero: true } : {}),
           ...(options.yNice !== false ? { nice: true } : {}),
           ...(options.yReverse ? { reverse: true } : {}),

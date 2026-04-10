@@ -57,6 +57,7 @@ import type {
   NavBarItem,
   NavBarIcon,
   NavBarItemType,
+  TextStyle,
 } from "@/types/dashboard";
 import { useDashboardStore } from "@/stores/dashboard-store";
 import { useEngine } from "@/engine/use-engine";
@@ -1400,9 +1401,12 @@ export function VizConfigPanel({
                           currency: "$,.0f", compact: "~s",
                           "date-month": "%b %Y", "date-year": "%Y",
                         };
+                        const isDate = value === "date-month" || value === "date-year";
                         updateOptions({
                           xDataType: value,
                           xTickFormat: value === "auto" ? undefined : fmt[value],
+                          // Date formats require a time scale — set it automatically
+                          ...(isDate ? { xScaleType: "time" } : {}),
                         });
                       }}
                       style={{
@@ -1450,9 +1454,11 @@ export function VizConfigPanel({
                           currency: "$,.0f", compact: "~s",
                           "date-month": "%b %Y", "date-year": "%Y",
                         };
+                        const isDate = value === "date-month" || value === "date-year";
                         updateOptions({
                           yDataType: value,
                           yTickFormat: value === "auto" ? undefined : fmt[value],
+                          ...(isDate ? { yScaleType: "time" } : {}),
                         });
                       }}
                       style={{
@@ -1801,6 +1807,14 @@ export function VizConfigPanel({
             </div>
           )}
         </div>
+      )}
+
+      {/* ═══ Text Panel — Typography ═══ */}
+      {t === "markdown" && (
+        <TypographyPanel
+          value={options.textStyle}
+          onChange={(ts) => updateOptions({ textStyle: ts })}
+        />
       )}
 
       {/* ═══ Grouped Table options ═══ */}
@@ -2886,6 +2900,223 @@ function NavBarConfigEditor({
           )}
         </div>
       </CollapsibleSection>
+    </div>
+  );
+}
+
+// ── Typography panel (Text / markdown type) ────────────────────────────────
+
+const FONT_PRESET_NAMES = [
+  "System", "Serif", "Mono", "Inter", "Roboto",
+  "Lato", "Montserrat", "Playfair Display", "Merriweather",
+] as const;
+
+function TypographyPanel({
+  value,
+  onChange,
+}: {
+  value: TextStyle | undefined;
+  onChange: (ts: TextStyle | undefined) => void;
+}) {
+  const ts = value ?? {};
+  const upd = (patch: Partial<TextStyle>) => onChange({ ...ts, ...patch });
+
+  return (
+    <div style={{ borderTop: "0.5px solid var(--color-border-tertiary)" }}>
+      <div style={{ fontSize: 10, fontWeight: 500, color: "var(--color-muted-foreground)", textTransform: "uppercase", letterSpacing: "0.05em", padding: "8px 12px 4px" }}>
+        Typography
+      </div>
+      <div className="space-y-4 p-3">
+
+        {/* Font family */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Font Family</label>
+          <div className="grid grid-cols-2 gap-1">
+            {FONT_PRESET_NAMES.map((f) => (
+              <Button
+                key={f}
+                variant={(ts.fontFamily ?? "System") === f ? "default" : "outline"}
+                size="sm"
+                className="h-7 justify-start truncate text-xs"
+                onClick={() => upd({ fontFamily: f })}
+              >
+                {f}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {/* Font size */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Size</label>
+          <div className="grid grid-cols-4 gap-1">
+            {([
+              { label: "XS", size: 11 }, { label: "SM", size: 13 },
+              { label: "Base", size: 14 }, { label: "MD", size: 16 },
+              { label: "LG", size: 20 }, { label: "XL", size: 24 },
+              { label: "2XL", size: 32 }, { label: "3XL", size: 48 },
+            ]).map(({ label, size }) => (
+              <Button
+                key={size}
+                variant={(ts.fontSize ?? 14) === size ? "default" : "outline"}
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => upd({ fontSize: size })}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="number" min={8} max={120}
+              className="w-20 rounded border bg-background px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-ring"
+              placeholder="14"
+              value={ts.fontSize ?? ""}
+              onChange={(e) => upd({ fontSize: e.target.value ? Number(e.target.value) : undefined })}
+            />
+            <span className="text-xs text-muted-foreground">px custom</span>
+          </div>
+        </div>
+
+        {/* Font weight */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Weight</label>
+          <div className="grid grid-cols-3 gap-1">
+            {([
+              { label: "Light", value: "300" }, { label: "Regular", value: "400" },
+              { label: "Medium", value: "500" }, { label: "Semi", value: "600" },
+              { label: "Bold", value: "700" }, { label: "Black", value: "800" },
+            ]).map(({ label, value }) => (
+              <Button
+                key={value}
+                variant={(ts.fontWeight ?? "400") === value ? "default" : "outline"}
+                size="sm"
+                className="h-7 text-xs"
+                style={{ fontWeight: value }}
+                onClick={() => upd({ fontWeight: value })}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {/* Colors */}
+        <div className="grid grid-cols-2 gap-3">
+          <HexColorInput
+            label="Text Color"
+            value={ts.color}
+            placeholder="currentColor"
+            onChange={(v) => upd({ color: v })}
+            onClear={() => upd({ color: undefined })}
+          />
+          <HexColorInput
+            label="Heading Color"
+            value={ts.headingColor}
+            placeholder="currentColor"
+            onChange={(v) => upd({ headingColor: v })}
+            onClear={() => upd({ headingColor: undefined })}
+          />
+        </div>
+
+        {/* Alignment */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Alignment</label>
+          <div className="flex gap-1">
+            {(["left", "center", "right", "justify"] as const).map((a) => (
+              <Button
+                key={a}
+                variant={(ts.align ?? "left") === a ? "default" : "outline"}
+                size="sm"
+                className="h-7 flex-1 text-xs"
+                onClick={() => upd({ align: a })}
+              >
+                {a === "justify" ? "Just." : a.charAt(0).toUpperCase() + a.slice(1)}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {/* Line height + letter spacing */}
+        <div className="space-y-2">
+          <div>
+            <label className="mb-1 flex items-center justify-between text-[10px] text-muted-foreground">
+              <span>Line Height</span>
+              <span>{(ts.lineHeight ?? 1.6).toFixed(1)}</span>
+            </label>
+            <input
+              type="range" min={1} max={3} step={0.1}
+              value={ts.lineHeight ?? 1.6}
+              onChange={(e) => upd({ lineHeight: Number(e.target.value) })}
+              className="w-full"
+            />
+          </div>
+          <div>
+            <label className="mb-1 flex items-center justify-between text-[10px] text-muted-foreground">
+              <span>Letter Spacing</span>
+              <span>{(ts.letterSpacing ?? 0).toFixed(2)}em</span>
+            </label>
+            <input
+              type="range" min={-0.05} max={0.25} step={0.01}
+              value={ts.letterSpacing ?? 0}
+              onChange={(e) => upd({ letterSpacing: Number(e.target.value) })}
+              className="w-full"
+            />
+          </div>
+        </div>
+
+        {/* Content width */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Content Width</label>
+          <div className="grid grid-cols-4 gap-1">
+            {([
+              { label: "Full", value: "none" },
+              { label: "Wide", value: "wide" },
+              { label: "Prose", value: "prose" },
+              { label: "Narrow", value: "narrow" },
+            ] as const).map(({ label, value }) => (
+              <Button
+                key={value}
+                variant={(ts.maxWidth ?? "none") === value ? "default" : "outline"}
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => upd({ maxWidth: value })}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+          <p className="text-[10px] text-muted-foreground">Prose (65ch) ideal for reading.</p>
+        </div>
+
+        {/* Heading weight */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Heading Weight</label>
+          <div className="flex flex-wrap gap-1">
+            {(["400", "500", "600", "700", "800"] as const).map((w) => (
+              <Button
+                key={w}
+                variant={(ts.headingWeight ?? "700") === w ? "default" : "outline"}
+                size="sm"
+                className="h-7 text-xs"
+                style={{ fontWeight: w }}
+                onClick={() => upd({ headingWeight: w })}
+              >
+                {w}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {/* Reset */}
+        <button
+          className="text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+          onClick={() => onChange(undefined)}
+        >
+          Reset all typography
+        </button>
+      </div>
     </div>
   );
 }

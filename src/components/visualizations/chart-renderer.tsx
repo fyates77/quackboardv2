@@ -41,6 +41,7 @@ export function ChartRenderer({ result, config, panel, allResults, onClickDatum,
     return (
       <MarkdownPanel
         content={panel?.markdownContent ?? ""}
+        textStyle={config.options.textStyle}
         panelResults={allResults}
       />
     );
