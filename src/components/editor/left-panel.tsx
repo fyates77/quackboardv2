@@ -20,11 +20,16 @@ import {
   Navigation,
   ExternalLink,
   Braces,
+  ChevronsUp,
+  ChevronUp,
+  ChevronDown,
+  ChevronsDown,
+  Trash2,
 } from "lucide-react";
-import type { Dashboard } from "@/types/dashboard";
+import { useDashboardStore } from "@/stores/dashboard-store";
+import type { Dashboard, VisualizationType } from "@/types/dashboard";
 import type { RailTab } from "./editor-shell";
 import { SchemaBrowser } from "@/components/data-sources/schema-browser";
-import type { VisualizationType } from "@/types/dashboard";
 
 interface LeftPanelProps {
   dashboardId: string;
@@ -67,6 +72,13 @@ const ADD_ELEMENT_GROUPS = [
     ],
   },
   {
+    label: "Layout",
+    items: [
+      { type: "frame", icon: <RectangleHorizontal size={13} />, label: "Frame" },
+      { type: "section", icon: <RectangleHorizontal size={13} />, label: "Section" },
+    ],
+  },
+  {
     label: "Content",
     items: [
       { type: "kpi", icon: <LayoutDashboard size={13} />, label: "KPI" },
@@ -77,7 +89,6 @@ const ADD_ELEMENT_GROUPS = [
       { type: "custom", icon: <Code size={13} />, label: "Custom" },
       { type: "vega-lite", icon: <Braces size={13} />, label: "Vega-Lite" },
       { type: "nav-bar", icon: <Navigation size={13} />, label: "Nav Bar" },
-      { type: "section", icon: <RectangleHorizontal size={13} />, label: "Section" },
     ],
   },
 ];
@@ -119,23 +130,84 @@ function typeIcon(type: VisualizationType | undefined) {
       return <Braces size={12} style={{ color: "var(--color-muted-foreground)", flexShrink: 0 }} />;
     case "nav-bar":
       return <Navigation size={12} style={{ color: "var(--color-muted-foreground)", flexShrink: 0 }} />;
+    case "frame":
+      return <RectangleHorizontal size={12} style={{ color: "var(--color-muted-foreground)", flexShrink: 0 }} />;
     default:
       return <RectangleHorizontal size={12} style={{ color: "var(--color-muted-foreground)", flexShrink: 0 }} />;
   }
 }
 
 function LayersTab({
+  dashboardId,
   dashboard,
   selectedId,
   onSelectElement,
   onAddPanel,
 }: {
+  dashboardId: string;
   dashboard: Dashboard;
   selectedId: string | null;
   onSelectElement: (id: string | null) => void;
   onAddPanel: (type?: string) => void;
 }) {
   const [treeExpanded, setTreeExpanded] = useState(true);
+  const updateCanvasPosition = useDashboardStore((s) => s.updateCanvasPosition);
+
+  // Compute current zIndex values
+  const zIndexMap: Record<string, number> = {};
+  dashboard.panels.forEach((p) => {
+    zIndexMap[p.id] = dashboard.canvasPositions?.[p.id]?.zIndex ?? 0;
+  });
+
+  const allZIndices = Object.values(zIndexMap);
+  const maxZ = allZIndices.length ? Math.max(...allZIndices) : 0;
+  const minZ = allZIndices.length ? Math.min(...allZIndices) : 0;
+
+  const bringToFront = (panelId: string) => {
+    const pos = dashboard.canvasPositions?.[panelId];
+    if (!pos) return;
+    updateCanvasPosition(dashboardId, panelId, { ...pos, zIndex: maxZ + 1 });
+  };
+
+  const sendToBack = (panelId: string) => {
+    const pos = dashboard.canvasPositions?.[panelId];
+    if (!pos) return;
+    updateCanvasPosition(dashboardId, panelId, { ...pos, zIndex: minZ - 1 });
+  };
+
+  const bringForward = (panelId: string) => {
+    const currentZ = zIndexMap[panelId] ?? 0;
+    // Find the panel with the next higher zIndex
+    const nextHigher = allZIndices
+      .filter((z) => z > currentZ)
+      .sort((a, b) => a - b)[0];
+    if (nextHigher === undefined) return;
+    // Swap zIndices
+    const otherPanel = dashboard.panels.find(
+      (p) => (zIndexMap[p.id] ?? 0) === nextHigher
+    );
+    const pos = dashboard.canvasPositions?.[panelId];
+    if (!pos || !otherPanel) return;
+    updateCanvasPosition(dashboardId, panelId, { ...pos, zIndex: nextHigher });
+    const otherPos = dashboard.canvasPositions?.[otherPanel.id];
+    if (otherPos) updateCanvasPosition(dashboardId, otherPanel.id, { ...otherPos, zIndex: currentZ });
+  };
+
+  const sendBackward = (panelId: string) => {
+    const currentZ = zIndexMap[panelId] ?? 0;
+    const nextLower = allZIndices
+      .filter((z) => z < currentZ)
+      .sort((a, b) => b - a)[0];
+    if (nextLower === undefined) return;
+    const otherPanel = dashboard.panels.find(
+      (p) => (zIndexMap[p.id] ?? 0) === nextLower
+    );
+    const pos = dashboard.canvasPositions?.[panelId];
+    if (!pos || !otherPanel) return;
+    updateCanvasPosition(dashboardId, panelId, { ...pos, zIndex: nextLower });
+    const otherPos = dashboard.canvasPositions?.[otherPanel.id];
+    if (otherPos) updateCanvasPosition(dashboardId, otherPanel.id, { ...otherPos, zIndex: currentZ });
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -204,43 +276,75 @@ function LayersTab({
           const isSelected = selectedId === panel.id;
           const hasSql = !!panel.query.sql.trim();
           return (
-            <button
+            <div
               key={panel.id}
-              onClick={() => onSelectElement(panel.id)}
               className="ed-layer-row"
               data-active={isSelected ? "true" : "false"}
               style={{
-                width: "100%",
                 display: "flex",
                 alignItems: "center",
-                gap: 6,
-                padding: "4px 10px 4px 26px",
-                border: "none",
+                gap: 4,
+                padding: "2px 6px 2px 26px",
                 color: isSelected ? "var(--color-text-info)" : "var(--color-text-primary)",
-                fontSize: 12,
-                textAlign: "left",
               }}
             >
-              {typeIcon(panel.visualization?.type)}
-              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {panel.title || "Untitled"}
-              </span>
-              {hasSql && (
-                <span
-                  style={{
-                    fontSize: 10,
-                    padding: "1px 5px",
-                    borderRadius: 4,
-                    background: "var(--color-background-warning)",
-                    color: "var(--color-text-warning)",
-                    flexShrink: 0,
-                  }}
-                >
-                  sql
+              <button
+                onClick={() => onSelectElement(panel.id)}
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  fontSize: 12,
+                  textAlign: "left",
+                  color: "inherit",
+                  minWidth: 0,
+                  padding: "2px 0",
+                }}
+              >
+                {typeIcon(panel.visualization?.type)}
+                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {panel.title || "Untitled"}
                 </span>
+                {hasSql && (
+                  <span
+                    style={{
+                      fontSize: 10,
+                      padding: "1px 5px",
+                      borderRadius: 4,
+                      background: "var(--color-background-warning)",
+                      color: "var(--color-text-warning)",
+                      flexShrink: 0,
+                    }}
+                  >
+                    sql
+                  </span>
+                )}
+              </button>
+
+              {/* Z-index ordering buttons */}
+              {isSelected && (
+                <div style={{ display: "flex", gap: 1, flexShrink: 0 }}>
+                  <ZBtn title="Bring to Front" onClick={() => bringToFront(panel.id)}>
+                    <ChevronsUp size={10} />
+                  </ZBtn>
+                  <ZBtn title="Bring Forward" onClick={() => bringForward(panel.id)}>
+                    <ChevronUp size={10} />
+                  </ZBtn>
+                  <ZBtn title="Send Backward" onClick={() => sendBackward(panel.id)}>
+                    <ChevronDown size={10} />
+                  </ZBtn>
+                  <ZBtn title="Send to Back" onClick={() => sendToBack(panel.id)}>
+                    <ChevronsDown size={10} />
+                  </ZBtn>
+                </div>
               )}
+
               <Eye size={11} style={{ color: "var(--color-muted-foreground)", opacity: 0, flexShrink: 0 }} className="layer-eye" />
-            </button>
+            </div>
           );
         })}
 
@@ -312,6 +416,23 @@ function LayersTab({
   );
 }
 
+function ZBtn({ children, title, onClick }: { children: React.ReactNode; title: string; onClick: () => void }) {
+  return (
+    <button
+      title={title}
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      style={{
+        width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center",
+        border: "0.5px solid var(--color-border-secondary)",
+        borderRadius: 3, background: "transparent",
+        color: "var(--color-muted-foreground)", cursor: "pointer", padding: 0,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
 function TabPill({ children, active }: { children: React.ReactNode; active: boolean }) {
   return (
     <button
@@ -332,8 +453,277 @@ function TabPill({ children, active }: { children: React.ReactNode; active: bool
   );
 }
 
+// ── Component Library Tab ────────────────────────────────────────────────────
+
+function ComponentsTab({
+  dashboardId,
+  selectedId,
+}: {
+  dashboardId: string;
+  selectedId: string | null;
+}) {
+  const { componentLibrary, saveComponent, deleteComponent, insertComponentToDashboard } = useDashboardStore();
+  const dashboard = useDashboardStore((s) => s.dashboards[dashboardId]);
+  const selectedPanel = selectedId ? dashboard?.panels.find((p) => p.id === selectedId) : null;
+  const [promptName, setPromptName] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = () => {
+    if (!selectedPanel) return;
+    const name = promptName.trim() || selectedPanel.title;
+    saveComponent({ ...selectedPanel, title: name });
+    setPromptName("");
+    setSaving(false);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", padding: "8px" }}>
+      <div style={{
+        padding: "4px 2px 8px",
+        borderBottom: "0.5px solid var(--color-border-tertiary)",
+        marginBottom: 8,
+      }}>
+        {saving ? (
+          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            <input
+              autoFocus
+              value={promptName}
+              onChange={(e) => setPromptName(e.target.value)}
+              placeholder={selectedPanel?.title ?? "Component name"}
+              onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") setSaving(false); }}
+              style={{
+                flex: 1, fontSize: 11, padding: "3px 6px",
+                border: "0.5px solid var(--color-border-secondary)",
+                borderRadius: "var(--border-radius-sm)",
+                background: "var(--color-background-primary)",
+                color: "var(--color-text-primary)", outline: "none",
+              }}
+            />
+            <button onClick={handleSave} style={smallBtnStyle("#3b82f6", "#fff")}>Save</button>
+            <button onClick={() => setSaving(false)} style={smallBtnStyle("transparent", "var(--color-muted-foreground)", true)}>✕</button>
+          </div>
+        ) : (
+          <button
+            onClick={() => { if (selectedPanel) setSaving(true); }}
+            disabled={!selectedPanel}
+            style={{
+              width: "100%", fontSize: 11, padding: "4px 8px",
+              border: "0.5px solid var(--color-border-secondary)",
+              borderRadius: "var(--border-radius-sm)",
+              background: "transparent", color: selectedPanel ? "var(--color-text-primary)" : "var(--color-muted-foreground)",
+              cursor: selectedPanel ? "pointer" : "not-allowed",
+            }}
+          >
+            + Save selection as component
+          </button>
+        )}
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto" }}>
+        {componentLibrary.length === 0 ? (
+          <p style={{ fontSize: 11, color: "var(--color-muted-foreground)", textAlign: "center", padding: "20px 8px" }}>
+            No saved components yet.<br />Select a panel and click "+ Save" above.
+          </p>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            {componentLibrary.map((comp) => (
+              <div
+                key={comp.id}
+                style={{
+                  border: "0.5px solid var(--color-border-secondary)",
+                  borderRadius: "var(--border-radius-md)",
+                  overflow: "hidden",
+                  position: "relative",
+                  cursor: "pointer",
+                  background: "var(--color-background-secondary)",
+                }}
+                onClick={() => insertComponentToDashboard(comp.id, dashboardId)}
+                title={`Insert "${comp.title}"`}
+              >
+                <div style={{
+                  padding: "12px 8px 8px",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 4,
+                }}>
+                  {typeIcon(comp.visualization?.type)}
+                  <span style={{ fontSize: 10, textAlign: "center", color: "var(--color-text-primary)", lineHeight: 1.3 }}>
+                    {comp.title}
+                  </span>
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); deleteComponent(comp.id); }}
+                  title="Remove from library"
+                  style={{
+                    position: "absolute", top: 4, right: 4,
+                    width: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center",
+                    border: "none", background: "transparent",
+                    color: "var(--color-muted-foreground)", cursor: "pointer", padding: 0, borderRadius: 2,
+                  }}
+                >
+                  <Trash2 size={10} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function smallBtnStyle(bg: string, color: string, bordered = false): React.CSSProperties {
+  return {
+    fontSize: 10, padding: "3px 8px",
+    border: bordered ? "0.5px solid var(--color-border-secondary)" : "none",
+    borderRadius: "var(--border-radius-sm)", background: bg, color, cursor: "pointer",
+  };
+}
+
+// ── Settings Tab ─────────────────────────────────────────────────────────────
+
+function SettingsTab({ dashboardId }: { dashboardId: string }) {
+  const { dashboards, updateDashboardTheme } = useDashboardStore();
+  const dashboard = dashboards[dashboardId];
+  const theme = dashboard?.theme ?? {};
+
+  const FONT_OPTIONS = [
+    "Inter, sans-serif", "Georgia, serif", "Menlo, monospace",
+    "system-ui, sans-serif", "Arial, sans-serif",
+  ];
+
+  const exportTheme = () => {
+    const blob = new Blob([JSON.stringify(theme, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${dashboard?.name ?? "theme"}-theme.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importTheme = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json";
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const imported = JSON.parse(text);
+        updateDashboardTheme(dashboardId, imported);
+      } catch { /* ignore parse errors */ }
+    };
+    input.click();
+  };
+
+  if (!dashboard) return null;
+
+  return (
+    <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px" }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--color-text-primary)", marginBottom: 10 }}>
+        Canvas &amp; Theme
+      </div>
+
+      {/* Accent color */}
+      <SettingRow label="Accent color">
+        <input
+          type="color"
+          value={theme.accentColor ?? "#3b82f6"}
+          onChange={(e) => updateDashboardTheme(dashboardId, { accentColor: e.target.value })}
+          style={{ width: 28, height: 22, border: "none", padding: 0, background: "none", cursor: "pointer" }}
+        />
+      </SettingRow>
+
+      {/* Canvas background */}
+      <SettingRow label="Canvas background">
+        <input
+          type="color"
+          value={theme.canvasBackground ?? "#ffffff"}
+          onChange={(e) => updateDashboardTheme(dashboardId, { canvasBackground: e.target.value })}
+          style={{ width: 28, height: 22, border: "none", padding: 0, background: "none", cursor: "pointer" }}
+        />
+      </SettingRow>
+
+      {/* Font family */}
+      <SettingRow label="Font family">
+        <select
+          value={theme.fontFamily ?? ""}
+          onChange={(e) => updateDashboardTheme(dashboardId, { fontFamily: e.target.value || undefined })}
+          style={selectStyle}
+        >
+          <option value="">Default</option>
+          {FONT_OPTIONS.map((f) => <option key={f} value={f}>{f.split(",")[0]}</option>)}
+        </select>
+      </SettingRow>
+
+      {/* Spacing multiplier */}
+      <SettingRow label={`Spacing ×${(theme.spacingMultiplier ?? 1).toFixed(1)}`}>
+        <input
+          type="range" min={0.5} max={2} step={0.1}
+          value={theme.spacingMultiplier ?? 1}
+          onChange={(e) => updateDashboardTheme(dashboardId, { spacingMultiplier: parseFloat(e.target.value) })}
+          style={{ flex: 1 }}
+        />
+      </SettingRow>
+
+      <div style={{ fontSize: 10, fontWeight: 600, color: "var(--color-muted-foreground)", textTransform: "uppercase", letterSpacing: "0.05em", marginTop: 12, marginBottom: 6 }}>
+        Design Tokens
+      </div>
+
+      {[
+        ["--color-primary", "Primary color"],
+        ["--color-background-primary", "Background"],
+        ["--color-background-secondary", "Card background"],
+      ].map(([token, label]) => (
+        <SettingRow key={token} label={label}>
+          <input
+            type="color"
+            value={theme.tokenOverrides?.[token] ?? "#000000"}
+            onChange={(e) => {
+              const overrides = { ...(theme.tokenOverrides ?? {}), [token]: e.target.value };
+              updateDashboardTheme(dashboardId, { tokenOverrides: overrides });
+            }}
+            style={{ width: 28, height: 22, border: "none", padding: 0, background: "none", cursor: "pointer" }}
+          />
+        </SettingRow>
+      ))}
+
+      <div style={{ display: "flex", gap: 6, marginTop: 14 }}>
+        <button onClick={exportTheme} style={{ ...smallBtnStyle("transparent", "var(--color-muted-foreground)", true), flex: 1, fontSize: 10 }}>
+          Export theme JSON
+        </button>
+        <button onClick={importTheme} style={{ ...smallBtnStyle("transparent", "var(--color-muted-foreground)", true), flex: 1, fontSize: 10 }}>
+          Import theme JSON
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const selectStyle: React.CSSProperties = {
+  fontSize: 10, padding: "2px 4px",
+  border: "0.5px solid var(--color-border-secondary)",
+  borderRadius: "var(--border-radius-sm)",
+  background: "var(--color-background-primary)",
+  color: "var(--color-text-primary)", outline: "none", flex: 1,
+};
+
+function SettingRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+      <span style={{ fontSize: 10, color: "var(--color-muted-foreground)", minWidth: 90, flexShrink: 0 }}>{label}</span>
+      {children}
+    </div>
+  );
+}
+
+// ── Main LeftPanel export ─────────────────────────────────────────────────────
+
 export function LeftPanel({
-  dashboardId: _dashboardId,
+  dashboardId,
   dashboard,
   railTab,
   selectedId,
@@ -354,6 +744,7 @@ export function LeftPanel({
     >
       {railTab === "layers" && (
         <LayersTab
+          dashboardId={dashboardId}
           dashboard={dashboard}
           selectedId={selectedId}
           onSelectElement={onSelectElement}
@@ -380,7 +771,11 @@ export function LeftPanel({
         </div>
       )}
 
-      {(railTab === "components" || railTab === "pages" || railTab === "settings") && (
+      {railTab === "components" && (
+        <ComponentsTab dashboardId={dashboardId} selectedId={selectedId} />
+      )}
+
+      {railTab === "pages" && (
         <div
           style={{
             flex: 1,
@@ -391,10 +786,12 @@ export function LeftPanel({
             color: "var(--color-muted-foreground)",
           }}
         >
-          {railTab === "components" && "Component library coming soon"}
-          {railTab === "pages" && "Multi-page support coming soon"}
-          {railTab === "settings" && "Canvas settings coming soon"}
+          Multi-page support coming soon
         </div>
+      )}
+
+      {railTab === "settings" && (
+        <SettingsTab dashboardId={dashboardId} />
       )}
     </div>
   );

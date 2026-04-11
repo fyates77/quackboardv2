@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Dashboard } from "@/types/dashboard";
 import type { QueryResult } from "@/engine/types";
 import { TopBar } from "./top-bar";
@@ -8,7 +9,7 @@ import { RightPanel } from "./right-panel";
 
 export type EditorTool = "select" | "frame" | "text" | "chart" | "image";
 export type RailTab = "layers" | "data" | "components" | "pages" | "settings";
-export type RightTab = "design" | "data" | "interact";
+export type RightTab = "design" | "data" | "interact" | "json";
 
 export interface EditorShellProps {
   dashboardId: string;
@@ -51,6 +52,8 @@ export function EditorShell({
     ? dashboard.panels.find((p) => p.id === selectedId) ?? null
     : null;
 
+  const [canvasZoom, setCanvasZoom] = useState(1);
+
   return (
     <div
       style={{
@@ -66,11 +69,13 @@ export function EditorShell({
       {/* Top bar — spans all columns */}
       <div style={{ gridColumn: "1 / -1", gridRow: "1" }}>
         <TopBar
+          dashboardId={dashboardId}
           dashboardName={dashboard.name}
           activeTool={activeTool}
           onToolChange={onToolChange}
           previewMode={previewMode}
           onPreviewToggle={onPreviewToggle}
+          zoom={canvasZoom}
         />
       </div>
 
@@ -103,6 +108,7 @@ export function EditorShell({
           loadingPanels={loadingPanels}
           previewMode={previewMode}
           onAddPanel={onAddPanel}
+          onZoomChange={setCanvasZoom}
         />
       </div>
 

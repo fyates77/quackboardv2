@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronRight, Play, AlertCircle, Plus, X, Code, Sliders, Maximize2, Bold, Italic, Link, Heading1, Heading2, Heading3, List, ListOrdered, Minus, Braces } from "lucide-react";
+import { ChevronRight, Play, AlertCircle, Plus, X, Code, Sliders, Maximize2, Bold, Italic, Link, Heading1, Heading2, Heading3, List, ListOrdered, Minus, Braces, Eye } from "lucide-react";
+import CodeMirror from "@uiw/react-codemirror";
+import { json as jsonLang } from "@codemirror/lang-json";
 import { useDashboardStore } from "@/stores/dashboard-store";
 import { useEngine } from "@/engine/use-engine";
 import { buildSQL } from "@/lib/query-builder";
@@ -419,6 +421,129 @@ function DesignTab({
         </Section>
       )}
 
+      {/* ── Opacity & Blend Mode ── */}
+      <PanelStyleSection dashboardId={dashboardId} panel={panel} />
+
+    </>
+  );
+}
+
+// ── Panel style section (opacity, blend, hover, custom CSS) ────────────────
+
+const BLEND_MODES = [
+  "normal", "multiply", "screen", "overlay", "darken", "lighten",
+  "color-dodge", "color-burn", "difference", "exclusion",
+];
+
+function PanelStyleSection({ dashboardId, panel }: { dashboardId: string; panel: Panel }) {
+  const updatePanelStyle = useDashboardStore((s) => s.updatePanelStyle);
+  const updatePanel = useDashboardStore((s) => s.updatePanel);
+  const [hoverPreview, setHoverPreview] = useState(false);
+
+  const style = panel.style ?? {};
+  const hoverStyle = panel.hoverStyle ?? {};
+
+  const setStyle = (updates: Partial<import("@/types/dashboard").PanelStyle>) =>
+    updatePanelStyle(dashboardId, panel.id, updates);
+
+  const setHoverStyleField = (updates: Partial<import("@/types/dashboard").PanelStyle>) =>
+    updatePanel(dashboardId, panel.id, { hoverStyle: { ...hoverStyle, ...updates } });
+
+  return (
+    <>
+      <Section title="Appearance">
+        {/* Opacity */}
+        <FieldLabel>Opacity: {Math.round((style.opacity ?? 1) * 100)}%</FieldLabel>
+        <input
+          type="range" min={0} max={1} step={0.01}
+          value={style.opacity ?? 1}
+          onChange={(e) => setStyle({ opacity: parseFloat(e.target.value) })}
+          style={{ width: "100%", marginBottom: 8 }}
+        />
+
+        {/* Blend mode */}
+        <FieldLabel>Blend mode</FieldLabel>
+        <select
+          value={style.blendMode ?? "normal"}
+          onChange={(e) => setStyle({ blendMode: e.target.value === "normal" ? undefined : e.target.value })}
+          style={{
+            width: "100%", fontSize: 11, padding: "3px 6px",
+            border: "0.5px solid var(--color-border-secondary)",
+            borderRadius: "var(--border-radius-sm)",
+            background: "var(--color-background-primary)",
+            color: "var(--color-text-primary)", outline: "none", marginBottom: 8,
+          }}
+        >
+          {BLEND_MODES.map((m) => (
+            <option key={m} value={m} style={{ textTransform: "capitalize" }}>
+              {m.charAt(0).toUpperCase() + m.slice(1).replace(/-/g, " ")}
+            </option>
+          ))}
+        </select>
+      </Section>
+
+      {/* Hover state */}
+      <Section title="Hover State" defaultOpen={false}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <span style={{ fontSize: 10, color: "var(--color-muted-foreground)" }}>
+            Styles applied on mouse-over in consumer view
+          </span>
+          <button
+            onClick={() => setHoverPreview((v) => !v)}
+            title={hoverPreview ? "Exit hover preview" : "Preview hover state"}
+            style={{
+              display: "flex", alignItems: "center", gap: 4, fontSize: 9, padding: "2px 7px",
+              border: "0.5px solid var(--color-border-secondary)", borderRadius: "var(--border-radius-sm)",
+              background: hoverPreview ? "var(--color-primary)" : "transparent",
+              color: hoverPreview ? "var(--color-primary-foreground)" : "var(--color-muted-foreground)",
+              cursor: "pointer",
+            }}
+          >
+            <Eye size={9} />
+            {hoverPreview ? "Previewing" : "Preview"}
+          </button>
+        </div>
+        <FieldLabel>Background color</FieldLabel>
+        <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+          <input
+            type="color"
+            value={hoverStyle.background ?? "#ffffff"}
+            onChange={(e) => setHoverStyleField({ background: e.target.value })}
+            style={{ width: 28, height: 24, border: "none", padding: 0, background: "none", cursor: "pointer" }}
+          />
+          <SmallInput
+            value={hoverStyle.background ?? ""}
+            onChange={(v) => setHoverStyleField({ background: v || undefined })}
+            placeholder="e.g. #f5f5f5"
+          />
+        </div>
+        <FieldLabel>Opacity: {Math.round((hoverStyle.opacity ?? 1) * 100)}%</FieldLabel>
+        <input
+          type="range" min={0} max={1} step={0.01}
+          value={hoverStyle.opacity ?? 1}
+          onChange={(e) => setHoverStyleField({ opacity: parseFloat(e.target.value) })}
+          style={{ width: "100%", marginBottom: 6 }}
+        />
+        <FieldLabel>Border color</FieldLabel>
+        <SmallInput
+          value={hoverStyle.borderColor ?? ""}
+          onChange={(v) => setHoverStyleField({ borderColor: v || undefined })}
+          placeholder="e.g. #3b82f6"
+        />
+      </Section>
+
+      {/* Custom CSS */}
+      <Section title="Custom CSS" defaultOpen={false}>
+        <p style={{ fontSize: 9, color: "var(--color-muted-foreground)", marginBottom: 6, lineHeight: 1.5 }}>
+          CSS rules scoped to <code style={{ fontFamily: "var(--font-mono)" }}>.panel-{panel.id}</code>
+        </p>
+        <div style={{ border: "0.5px solid var(--color-border-secondary)", borderRadius: "var(--border-radius-sm)", overflow: "hidden", minHeight: 80 }}>
+          <JsEditor
+            value={style.customCSS ?? ""}
+            onChange={(v) => setStyle({ customCSS: v || undefined })}
+          />
+        </div>
+      </Section>
     </>
   );
 }
@@ -1046,51 +1171,135 @@ function SqlExpandOverlay({
 
 // ── Interact tab ───────────────────────────────────────────────────────────
 
-function InteractTab({ panel }: { panel: Panel }) {
-  const PLACEHOLDER_SECTIONS = [
-    {
-      title: "Drilldown",
-      body: panel.drilldownLevels?.length
-        ? `${panel.drilldownLevels.length} level(s): ${panel.drilldownLevels.join(" › ")}`
-        : null,
-      action: "Add drilldown",
-    },
-    {
-      title: "Parameters",
-      body: null,
-      action: "Add parameter",
-    },
-    {
-      title: "Filters",
-      body: null,
-      action: "Add filter",
-    },
-  ];
+function InteractTab({ dashboardId, panel }: { dashboardId: string; panel: Panel }) {
+  const updatePanel = useDashboardStore((s) => s.updatePanel);
+  const dashboard = useDashboardStore((s) => s.dashboards[dashboardId]);
+
+  const action = panel.clickAction;
+  const type = action?.type ?? "";
+
+  const setAction = (updates: Partial<import("@/types/dashboard").PanelClickAction>) => {
+    updatePanel(dashboardId, panel.id, {
+      clickAction: { ...panel.clickAction, ...updates } as import("@/types/dashboard").PanelClickAction,
+    });
+  };
+
+  const clearAction = () => updatePanel(dashboardId, panel.id, { clickAction: undefined });
+
+  const fieldStyle: React.CSSProperties = {
+    width: "100%", fontSize: 11, padding: "3px 6px",
+    border: "0.5px solid var(--color-border-secondary)",
+    borderRadius: "var(--border-radius-sm)",
+    background: "var(--color-background-primary)",
+    color: "var(--color-text-primary)", outline: "none", marginBottom: 6,
+  };
 
   return (
     <>
-      {PLACEHOLDER_SECTIONS.map(({ title, body, action }) => (
-        <Section key={title} title={title} defaultOpen={false}>
-          {body && (
-            <p style={{ fontSize: 10, color: "var(--color-muted-foreground)", marginBottom: 6, fontFamily: "var(--font-mono)" }}>
-              {body}
-            </p>
-          )}
-          <button
-            style={{
-              fontSize: 11,
-              padding: "4px 10px",
-              border: "0.5px solid var(--color-border-secondary)",
-              borderRadius: "var(--border-radius-sm)",
-              background: "transparent",
-              color: "var(--color-muted-foreground)",
-              cursor: "pointer",
-            }}
-          >
-            + {action}
-          </button>
-        </Section>
-      ))}
+      {/* Click action */}
+      <Section title="Click Action">
+        <FieldLabel>Action type</FieldLabel>
+        <select
+          value={type}
+          onChange={(e) => {
+            const t = e.target.value as import("@/types/dashboard").PanelClickAction["type"];
+            if (!t) clearAction();
+            else setAction({ type: t });
+          }}
+          style={{ ...fieldStyle, marginBottom: 10 }}
+        >
+          <option value="">— none —</option>
+          <option value="navigate">Navigate to page</option>
+          <option value="toggleVisibility">Toggle panel visibility</option>
+          <option value="setParameter">Set parameter value</option>
+          <option value="openUrl">Open URL</option>
+        </select>
+
+        {type === "navigate" && (
+          <>
+            <FieldLabel>Page index (0-based)</FieldLabel>
+            <input
+              type="number"
+              value={action?.pageIndex ?? 0}
+              onChange={(e) => setAction({ pageIndex: parseInt(e.target.value, 10) || 0 })}
+              style={fieldStyle}
+              min={0}
+            />
+          </>
+        )}
+
+        {type === "toggleVisibility" && (
+          <>
+            <FieldLabel>Target panel</FieldLabel>
+            <select
+              value={action?.targetPanelId ?? ""}
+              onChange={(e) => setAction({ targetPanelId: e.target.value || undefined })}
+              style={fieldStyle}
+            >
+              <option value="">— select panel —</option>
+              {dashboard?.panels.filter((p) => p.id !== panel.id).map((p) => (
+                <option key={p.id} value={p.id}>{p.title || "Untitled"}</option>
+              ))}
+            </select>
+          </>
+        )}
+
+        {type === "setParameter" && (
+          <>
+            <FieldLabel>Parameter ID</FieldLabel>
+            <select
+              value={action?.parameterId ?? ""}
+              onChange={(e) => setAction({ parameterId: e.target.value || undefined })}
+              style={fieldStyle}
+            >
+              <option value="">— select parameter —</option>
+              {dashboard?.parameters?.map((p) => (
+                <option key={p.id} value={p.id}>{p.label || p.name}</option>
+              ))}
+            </select>
+            <FieldLabel>Value to set</FieldLabel>
+            <input
+              type="text"
+              value={action?.parameterValue ?? ""}
+              onChange={(e) => setAction({ parameterValue: e.target.value })}
+              placeholder="e.g. 2024"
+              style={fieldStyle}
+            />
+          </>
+        )}
+
+        {type === "openUrl" && (
+          <>
+            <FieldLabel>URL</FieldLabel>
+            <input
+              type="text"
+              value={action?.url ?? ""}
+              onChange={(e) => setAction({ url: e.target.value })}
+              placeholder="https://example.com"
+              style={fieldStyle}
+            />
+          </>
+        )}
+      </Section>
+
+      {/* Drilldown (existing stub) */}
+      <Section title="Drilldown" defaultOpen={false}>
+        {panel.drilldownLevels?.length ? (
+          <p style={{ fontSize: 10, color: "var(--color-muted-foreground)", marginBottom: 6, fontFamily: "var(--font-mono)" }}>
+            {panel.drilldownLevels.length} level(s): {panel.drilldownLevels.join(" › ")}
+          </p>
+        ) : null}
+        <button
+          style={{
+            fontSize: 11, padding: "4px 10px",
+            border: "0.5px solid var(--color-border-secondary)",
+            borderRadius: "var(--border-radius-sm)", background: "transparent",
+            color: "var(--color-muted-foreground)", cursor: "pointer",
+          }}
+        >
+          + Add drilldown
+        </button>
+      </Section>
     </>
   );
 }
@@ -1213,6 +1422,76 @@ function VariableInserter({
   );
 }
 
+// ── JSON tab ───────────────────────────────────────────────────────────────
+
+function JsonTab({ dashboardId, panel }: { dashboardId: string; panel: Panel }) {
+  const updatePanel = useDashboardStore((s) => s.updatePanel);
+  const [jsonText, setJsonText] = useState(() => JSON.stringify(panel, null, 2));
+  const [parseError, setParseError] = useState<string | null>(null);
+  const panelIdRef = useRef(panel.id);
+
+  // Reset when selected panel changes
+  useEffect(() => {
+    if (panelIdRef.current !== panel.id) {
+      panelIdRef.current = panel.id;
+      setJsonText(JSON.stringify(panel, null, 2));
+      setParseError(null);
+    }
+  }, [panel]);
+
+  const handleApply = () => {
+    try {
+      const parsed = JSON.parse(jsonText) as Panel;
+      if (!parsed.id || !parsed.title) throw new Error("Panel must have id and title");
+      updatePanel(dashboardId, parsed.id, parsed);
+      setParseError(null);
+    } catch (e) {
+      setParseError(e instanceof Error ? e.message : "Invalid JSON");
+    }
+  };
+
+  return (
+    <div style={{ padding: "8px 12px", display: "flex", flexDirection: "column", height: "100%" }}>
+      <p style={{ fontSize: 10, color: "var(--color-muted-foreground)", marginBottom: 6, lineHeight: 1.5 }}>
+        Edit the raw panel JSON. Click Apply or press Ctrl+S to save.
+      </p>
+      {parseError && (
+        <div style={{
+          fontSize: 10, color: "hsl(0 72% 55%)", background: "hsl(0 72% 55% / 0.1)",
+          border: "0.5px solid hsl(0 72% 55% / 0.3)", borderRadius: "var(--border-radius-sm)",
+          padding: "4px 8px", marginBottom: 6,
+        }}>
+          {parseError}
+        </div>
+      )}
+      <div
+        style={{ flex: 1, border: "0.5px solid var(--color-border-secondary)", borderRadius: "var(--border-radius-sm)", overflow: "hidden", marginBottom: 8 }}
+        onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); handleApply(); } }}
+      >
+        <CodeMirror
+          value={jsonText}
+          extensions={[jsonLang()]}
+          onChange={setJsonText}
+          theme="none"
+          basicSetup={{ lineNumbers: true, foldGutter: true }}
+          style={{ fontSize: 11, height: "100%" }}
+        />
+      </div>
+      <button
+        onClick={handleApply}
+        style={{
+          fontSize: 11, fontWeight: 500, padding: "4px 12px",
+          border: "none", borderRadius: "var(--border-radius-sm)",
+          background: "var(--color-primary)", color: "var(--color-primary-foreground)",
+          cursor: "pointer", alignSelf: "flex-start",
+        }}
+      >
+        Apply
+      </button>
+    </div>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 export function RightPanel({
@@ -1227,6 +1506,7 @@ export function RightPanel({
     { id: "design", label: "Design" },
     { id: "data", label: "Data" },
     { id: "interact", label: "Interact" },
+    { id: "json", label: "JSON" },
   ];
 
   return (
@@ -1305,7 +1585,10 @@ export function RightPanel({
               />
             )}
             {activeTab === "interact" && (
-              <InteractTab panel={selectedPanel} />
+              <InteractTab dashboardId={dashboardId} panel={selectedPanel} />
+            )}
+            {activeTab === "json" && (
+              <JsonTab dashboardId={dashboardId} panel={selectedPanel} />
             )}
           </>
         )}

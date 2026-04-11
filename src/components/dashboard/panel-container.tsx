@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo, useCallback, type CSSProperties } from "react";
+import { useRef, useState, useMemo, useCallback, useEffect, type CSSProperties } from "react";
 import {
   GripVertical,
   Pencil,
@@ -69,6 +69,12 @@ function panelStyleToCSS(style?: PanelStyle): {
   if (style.shadow && style.shadow !== "md") {
     css.boxShadow = SHADOW_MAP[style.shadow] ?? undefined;
   }
+  if (style.opacity !== undefined) {
+    css.opacity = style.opacity;
+  }
+  if (style.blendMode && style.blendMode !== "normal") {
+    css.mixBlendMode = style.blendMode as CSSProperties["mixBlendMode"];
+  }
 
   return { className: useGlass ? "glass" : "", css };
 }
@@ -99,6 +105,7 @@ export function PanelContainer({
   const duplicatePanel = useDashboardStore((s) => s.duplicatePanel);
   const updatePanelTitle = useDashboardStore((s) => s.updatePanelTitle);
   const { activePanelId, setActivePanelId } = useUIStore();
+  const setParameterValue = useInteractionStore((s) => s.setParameterValue);
   const setDataDrawerPanelId = useInteractionStore(
     (s) => s.setDataDrawerPanelId,
   );
@@ -107,7 +114,19 @@ export function PanelContainer({
 
   const [editing, setEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState(panel.title);
+  const [isHovered, setIsHovered] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  // Inject custom CSS scoped to this panel
+  useEffect(() => {
+    const css = panel.style?.customCSS;
+    if (!css) return;
+    const styleEl = document.createElement("style");
+    styleEl.id = `panel-css-${panel.id}`;
+    styleEl.textContent = css.replace(/\.(panel-[a-zA-Z0-9_-]+)/g, `.panel-${panel.id}`);
+    document.head.appendChild(styleEl);
+    return () => { document.getElementById(`panel-css-${panel.id}`)?.remove(); };
+  }, [panel.id, panel.style?.customCSS]);
 
   const isContentPanel = CONTENT_PANEL_TYPES.has(panel.visualization.type);
 
@@ -177,9 +196,15 @@ export function PanelContainer({
     setEditing(false);
   };
 
+  // Merge hover style over base style when hovered (consumer/preview mode only)
+  const effectiveStyle = useMemo(() => {
+    if (!isHovered || !panel.hoverStyle || !readOnly) return panel.style;
+    return { ...panel.style, ...panel.hoverStyle };
+  }, [isHovered, panel.style, panel.hoverStyle, readOnly]);
+
   const { className: styleClass, css: styleCss } = useMemo(
-    () => panelStyleToCSS(panel.style),
-    [panel.style],
+    () => panelStyleToCSS(effectiveStyle),
+    [effectiveStyle],
   );
 
   const handleChartClick = useMemo(() => {
@@ -189,16 +214,45 @@ export function PanelContainer({
 
   const contentPadding = panel.style?.padding !== undefined ? panel.style.padding : 8;
 
+  // Execute click action in consumer/preview mode
+  const handleClickAction = useCallback(() => {
+    if (!readOnly || !panel.clickAction) return;
+    const action = panel.clickAction;
+    switch (action.type) {
+      case "openUrl":
+        if (action.url) window.open(action.url, "_blank", "noopener,noreferrer");
+        break;
+      case "setParameter":
+        if (action.parameterId && action.parameterValue !== undefined) {
+          setParameterValue(action.parameterId, action.parameterValue);
+        }
+        break;
+      case "toggleVisibility":
+        // Visibility is controlled by visibilityCondition — for now just toggle a cross-filter flag
+        // Full implementation would require panel visibility state; this is a placeholder
+        break;
+      case "navigate":
+        // Multi-page navigate — placeholder (multi-page not yet wired)
+        break;
+    }
+  }, [readOnly, panel.clickAction, setParameterValue]);
+
   return (
     <div
       className={cn(
         "flex h-full flex-col rounded-xl transition-all",
         styleClass,
+        `panel-${panel.id}`,
         isActive && "ring-2 ring-primary/60 shadow-lg",
         !isActive && !panel.style?.shadow && "hover:shadow-md",
       )}
       style={styleCss}
-      onClick={() => setActivePanelId(panel.id)}
+      onClick={() => {
+        setActivePanelId(panel.id);
+        handleClickAction();
+      }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
       {/* Header (hidden if chromeless) */}
       {!panel.style?.chromeless && (

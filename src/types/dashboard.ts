@@ -3,6 +3,10 @@ export interface CanvasPosition {
   y: number;
   w: number;
   h: number;
+  /** Z-order for layering panels (higher = on top) */
+  zIndex?: number;
+  /** Parent frame panel ID (for grouped/nested panels) */
+  parentFrameId?: string;
 }
 
 export interface Dashboard {
@@ -131,6 +135,30 @@ export interface Panel {
   crossFilterEnabled?: boolean;
   /** Columns this panel listens to for cross-filter values (empty = all) */
   crossFilterListenColumns?: string[];
+  /** Per-panel hover style overrides (applied on mouse-enter in consumer view) */
+  hoverStyle?: Partial<PanelStyle>;
+  /** Author-configured click action executed in consumer/preview mode */
+  clickAction?: PanelClickAction;
+  /** Responsive breakpoint rules */
+  responsiveRules?: Array<{
+    breakpoint: number;
+    hidden?: boolean;
+    overridePosition?: Partial<CanvasPosition>;
+  }>;
+}
+
+export interface PanelClickAction {
+  type: "navigate" | "toggleVisibility" | "setParameter" | "openUrl";
+  /** Target panel ID (for toggleVisibility) */
+  targetPanelId?: string;
+  /** Parameter ID (for setParameter) */
+  parameterId?: string;
+  /** Parameter value (for setParameter) */
+  parameterValue?: string;
+  /** URL (for openUrl) */
+  url?: string;
+  /** Page index (for navigate — multi-page) */
+  pageIndex?: number;
 }
 
 export interface VisibilityCondition {
@@ -176,6 +204,12 @@ export interface PanelStyle {
   titleAlign?: "left" | "center" | "right";
   /** Title font size in px */
   titleSize?: number;
+  /** Panel element opacity (0–1, default 1) */
+  opacity?: number;
+  /** CSS mix-blend-mode value */
+  blendMode?: string;
+  /** Custom CSS scoped to this panel via .panel-{id} selector */
+  customCSS?: string;
 }
 
 export interface DashboardTheme {
@@ -189,6 +223,8 @@ export interface DashboardTheme {
   spacingMultiplier?: number;
   /** Custom CSS scoped to the dashboard container */
   customCSS?: string;
+  /** CSS variable overrides for design tokens */
+  tokenOverrides?: Record<string, string>;
 }
 
 export interface ThresholdRule {
@@ -249,7 +285,8 @@ export type VisualizationType =
   | "image"
   | "embed"
   | "html"
-  | "nav-bar";
+  | "nav-bar"
+  | "frame";
 
 // ─── Nav Bar Panel ─────────────────────────────────────────────────────────
 

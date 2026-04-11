@@ -202,6 +202,17 @@ function DashboardEditorPage() {
       if (e.key === "v" && !e.metaKey && !e.ctrlKey) setActiveTool("select");
       if (e.key === "f" && !e.metaKey && !e.ctrlKey) setActiveTool("frame");
       if (e.key === "t" && !e.metaKey && !e.ctrlKey) setActiveTool("text");
+
+      // Undo / Redo via zundo temporal store
+      const temporal = (useDashboardStore as unknown as { temporal: { getState: () => { undo: () => void; redo: () => void } } }).temporal;
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        temporal.getState().undo();
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.key === "z" && e.shiftKey))) {
+        e.preventDefault();
+        temporal.getState().redo();
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);

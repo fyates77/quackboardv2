@@ -6,10 +6,13 @@ interface UIState {
   theme: "light" | "dark";
   sidebarOpen: boolean;
   activePanelId: string | null;
+  /** Whether snap-to-element is enabled in the canvas editor */
+  editorSnapEnabled: boolean;
 
   setTheme: (theme: "light" | "dark") => void;
   toggleTheme: () => void;
   setActivePanelId: (id: string | null) => void;
+  setEditorSnapEnabled: (enabled: boolean) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -18,6 +21,7 @@ export const useUIStore = create<UIState>()(
       theme: "light",
       sidebarOpen: true,
       activePanelId: null,
+      editorSnapEnabled: true,
 
       setTheme: (theme) => {
         document.documentElement.classList.toggle("dark", theme === "dark");
@@ -32,6 +36,8 @@ export const useUIStore = create<UIState>()(
         }),
 
       setActivePanelId: (id) => set({ activePanelId: id }),
+
+      setEditorSnapEnabled: (enabled) => set({ editorSnapEnabled: enabled }),
     }),
     {
       name: "quackboard-ui",
