@@ -704,10 +704,28 @@ export function PlotChart({ type, result, mapping, options, annotations, onClick
         "date-month": "%b %Y",
         "date-year": "%Y",
       };
-      const xEffectiveFormat = options.xTickFormat
+      const xEffectiveFormatRaw = options.xTickFormat
         || (options.xDataType && options.xDataType !== "auto" ? DATA_TYPE_FORMAT[options.xDataType] : undefined);
-      const yEffectiveFormat = options.yTickFormat
+      const yEffectiveFormatRaw = options.yTickFormat
         || (options.yDataType && options.yDataType !== "auto" ? DATA_TYPE_FORMAT[options.yDataType] : undefined);
+
+      // Safety: detect if the data for an axis is temporal (Date objects) by sampling the first row.
+      // If a numeric d3-format is applied to a temporal column Observable Plot renders the format
+      // string literally. Clear the format when there is a kind mismatch.
+      const xSampleVal = x && plotData.length > 0 ? plotData[0][x] : undefined;
+      const ySampleVal = (yField || (Array.isArray(y) ? y[0] : y)) && plotData.length > 0
+        ? plotData[0][(yField || (Array.isArray(y) ? y[0] : y)) as string]
+        : undefined;
+      const xIsDate = xSampleVal instanceof Date;
+      const yIsDate = ySampleVal instanceof Date;
+      const xEffectiveFormat = xEffectiveFormatRaw
+        ? (xIsDate ? (isTimeFmt(xEffectiveFormatRaw) ? xEffectiveFormatRaw : undefined)
+                   : (!isTimeFmt(xEffectiveFormatRaw) ? xEffectiveFormatRaw : undefined))
+        : undefined;
+      const yEffectiveFormat = yEffectiveFormatRaw
+        ? (yIsDate ? (isTimeFmt(yEffectiveFormatRaw) ? yEffectiveFormatRaw : undefined)
+                   : (!isTimeFmt(yEffectiveFormatRaw) ? yEffectiveFormatRaw : undefined))
+        : undefined;
 
       // --- Plot options ---
       const plotOptions: Plot.PlotOptions = {

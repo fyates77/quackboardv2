@@ -134,6 +134,33 @@ const DEFAULT_VEGA_LITE_SPEC = JSON.stringify(
   2,
 );
 
+/** Maps a DuckDB type string to a broad category used for axis format filtering. */
+function classifyDuckType(type: string): "numeric" | "datetime" | "categorical" {
+  const t = type.toUpperCase();
+  if (/^(DATE|TIMESTAMP|TIME|INTERVAL)/.test(t)) return "datetime";
+  if (/^(INT|TINYINT|SMALLINT|BIGINT|HUGEINT|UBIGINT|UINTEGER|USMALLINT|UTINYINT|FLOAT|DOUBLE|REAL|DECIMAL|NUMERIC)/.test(t)) return "numeric";
+  return "categorical";
+}
+
+type FormatKind = "numeric" | "datetime" | "categorical";
+
+const FORMAT_PRESETS: { label: string; value: string; kinds: FormatKind[] }[] = [
+  { label: "Auto",      value: "auto",       kinds: ["numeric", "datetime", "categorical"] },
+  { label: "1,234",     value: "integer",    kinds: ["numeric"] },
+  { label: "1,234.56",  value: "number",     kinds: ["numeric"] },
+  { label: "45%",       value: "percent",    kinds: ["numeric"] },
+  { label: "$1,234",    value: "currency",   kinds: ["numeric"] },
+  { label: "1.2M",      value: "compact",    kinds: ["numeric"] },
+  { label: "Jan 2024",  value: "date-month", kinds: ["datetime"] },
+  { label: "2024",      value: "date-year",  kinds: ["datetime"] },
+];
+
+const FORMAT_VALUES: Record<string, string> = {
+  integer: ",.0f", number: ",.2f", percent: ".0%",
+  currency: "$,.0f", compact: "~s",
+  "date-month": "%b %Y", "date-year": "%Y",
+};
+
 /* ─── Main Component ─────────────────────────────────────────── */
 
 export function VizConfigPanel({
@@ -150,6 +177,21 @@ export function VizConfigPanel({
   const t = config.type;
   const engine = useEngine();
   const [crosstabSourceRunning, setCrosstabSourceRunning] = useState(false);
+
+  // Derive column data-kind for axis format filtering
+  const colTypeMap = Object.fromEntries(
+    (result?.columns ?? []).map((c) => [c.name, classifyDuckType(c.type)])
+  ) as Record<string, FormatKind>;
+  const xColKind: FormatKind = (mapping.x ? colTypeMap[mapping.x] : undefined) ?? "categorical";
+  const yColKind: FormatKind = (() => {
+    const yCol = Array.isArray(mapping.y) ? mapping.y[0] : mapping.y;
+    return (yCol ? colTypeMap[yCol] : undefined) ?? "categorical";
+  })();
+
+  // Local state for custom axis format inputs — commit on blur/Enter only to avoid
+  // applying partial format strings (e.g. typing ",.0" before finishing ",.0f")
+  const [xFmtDraft, setXFmtDraft] = useState<string | null>(null);
+  const [yFmtDraft, setYFmtDraft] = useState<string | null>(null);
 
   const isPlot = PLOT_TYPES.has(t);
   const isXY = XY_TYPES.has(t);
@@ -1383,29 +1425,15 @@ export function VizConfigPanel({
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">X Axis Format</label>
                 <div className="flex flex-wrap gap-1">
-                  {([
-                    { label: "Auto", value: "auto" },
-                    { label: "1,234", value: "integer" },
-                    { label: "1,234.56", value: "number" },
-                    { label: "45%", value: "percent" },
-                    { label: "$1,234", value: "currency" },
-                    { label: "1.2M", value: "compact" },
-                    { label: "Jan 2024", value: "date-month" },
-                    { label: "2024", value: "date-year" },
-                  ] as const).map(({ label, value }) => (
+                  {FORMAT_PRESETS.filter((p) => p.kinds.includes(xColKind)).map(({ label, value }) => (
                     <button
                       key={value}
                       onClick={() => {
-                        const fmt: Record<string, string> = {
-                          integer: ",.0f", number: ",.2f", percent: ".0%",
-                          currency: "$,.0f", compact: "~s",
-                          "date-month": "%b %Y", "date-year": "%Y",
-                        };
                         const isDate = value === "date-month" || value === "date-year";
+                        setXFmtDraft(null);
                         updateOptions({
-                          xDataType: value,
-                          xTickFormat: value === "auto" ? undefined : fmt[value],
-                          // Date formats require a time scale — set it automatically
+                          xDataType: value as NonNullable<VisualizationOptions["xDataType"]>,
+                          xTickFormat: value === "auto" ? undefined : FORMAT_VALUES[value],
                           ...(isDate ? { xScaleType: "time" } : {}),
                         });
                       }}
@@ -1424,40 +1452,38 @@ export function VizConfigPanel({
                     </button>
                   ))}
                 </div>
-                <input
-                  className="w-full rounded border bg-background px-2 py-1.5 text-xs font-mono outline-none focus:ring-1 focus:ring-ring"
-                  placeholder="Custom: %b %Y  or  $,.2f"
-                  value={options.xTickFormat ?? ""}
-                  onChange={(e) => updateOptions({ xTickFormat: e.target.value || undefined, xDataType: e.target.value ? undefined : options.xDataType })}
-                />
+                {xColKind !== "categorical" && (
+                  <input
+                    className="w-full rounded border bg-background px-2 py-1.5 text-xs font-mono outline-none focus:ring-1 focus:ring-ring"
+                    placeholder={xColKind === "datetime" ? "Custom: %b %d, %Y" : "Custom: $,.2f"}
+                    value={xFmtDraft ?? options.xTickFormat ?? ""}
+                    onChange={(e) => setXFmtDraft(e.target.value)}
+                    onBlur={(e) => {
+                      const v = e.target.value.trim();
+                      setXFmtDraft(null);
+                      updateOptions({ xTickFormat: v || undefined, xDataType: v ? undefined : options.xDataType });
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                      if (e.key === "Escape") { setXFmtDraft(null); }
+                    }}
+                  />
+                )}
               </div>
 
               {/* ── Tick format: Y ── */}
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Y Axis Format</label>
                 <div className="flex flex-wrap gap-1">
-                  {([
-                    { label: "Auto", value: "auto" },
-                    { label: "1,234", value: "integer" },
-                    { label: "1,234.56", value: "number" },
-                    { label: "45%", value: "percent" },
-                    { label: "$1,234", value: "currency" },
-                    { label: "1.2M", value: "compact" },
-                    { label: "Jan 2024", value: "date-month" },
-                    { label: "2024", value: "date-year" },
-                  ] as const).map(({ label, value }) => (
+                  {FORMAT_PRESETS.filter((p) => p.kinds.includes(yColKind)).map(({ label, value }) => (
                     <button
                       key={value}
                       onClick={() => {
-                        const fmt: Record<string, string> = {
-                          integer: ",.0f", number: ",.2f", percent: ".0%",
-                          currency: "$,.0f", compact: "~s",
-                          "date-month": "%b %Y", "date-year": "%Y",
-                        };
                         const isDate = value === "date-month" || value === "date-year";
+                        setYFmtDraft(null);
                         updateOptions({
-                          yDataType: value,
-                          yTickFormat: value === "auto" ? undefined : fmt[value],
+                          yDataType: value as NonNullable<VisualizationOptions["yDataType"]>,
+                          yTickFormat: value === "auto" ? undefined : FORMAT_VALUES[value],
                           ...(isDate ? { yScaleType: "time" } : {}),
                         });
                       }}
@@ -1476,12 +1502,23 @@ export function VizConfigPanel({
                     </button>
                   ))}
                 </div>
-                <input
-                  className="w-full rounded border bg-background px-2 py-1.5 text-xs font-mono outline-none focus:ring-1 focus:ring-ring"
-                  placeholder="Custom: ,.0f  or  $,.2f"
-                  value={options.yTickFormat ?? ""}
-                  onChange={(e) => updateOptions({ yTickFormat: e.target.value || undefined, yDataType: e.target.value ? undefined : options.yDataType })}
-                />
+                {yColKind !== "categorical" && (
+                  <input
+                    className="w-full rounded border bg-background px-2 py-1.5 text-xs font-mono outline-none focus:ring-1 focus:ring-ring"
+                    placeholder={yColKind === "datetime" ? "Custom: %b %d, %Y" : "Custom: $,.2f"}
+                    value={yFmtDraft ?? options.yTickFormat ?? ""}
+                    onChange={(e) => setYFmtDraft(e.target.value)}
+                    onBlur={(e) => {
+                      const v = e.target.value.trim();
+                      setYFmtDraft(null);
+                      updateOptions({ yTickFormat: v || undefined, yDataType: v ? undefined : options.yDataType });
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                      if (e.key === "Escape") { setYFmtDraft(null); }
+                    }}
+                  />
+                )}
               </div>
 
               {/* Border / frame */}
